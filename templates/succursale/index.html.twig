@@ -1,0 +1,24 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Mes succursales{% endblock %}
+{% block page_subtitle %}Succursales que vous administrez.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Mes succursales</li>{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    {% for s in succursales %}
+        <div class="col-md-6 col-xl-4">
+            <a href="{{ path('app_succursale_voir', {id: s.id}) }}" class="societe-tile text-decoration-none">
+                <span class="avatar avatar-lg avatar-square">{{ s.initiales }}</span>
+                <span class="flex-grow-1 overflow-hidden">
+                    <span class="d-block fw-semibold text-truncate">{{ s.nom }}</span>
+                    <span class="d-block small text-body-secondary">{{ s.societes|length }} société(s) {% for p in s.pays %}{{ p.drapeau }}{% endfor %}</span>
+                </span>
+                <i class="bi bi-chevron-right text-body-secondary"></i>
+            </a>
+        </div>
+    {% else %}
+        <div class="col-12"><div class="card"><div class="empty-state"><i class="bi bi-diagram-3"></i>Vous n'administrez aucune succursale.</div></div></div>
+    {% endfor %}
+</div>
+{% endblock %}

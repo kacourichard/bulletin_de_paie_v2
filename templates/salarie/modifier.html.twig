@@ -1,0 +1,72 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Modifier le dossier{% endblock %}
+{% block page_subtitle %}{{ affectation.salarie.nomComplet }} · <span class="font-monospace">{{ affectation.matricule }}</span>{% endblock %}
+{% block breadcrumb %}{% include 'salarie/_fil.html.twig' with {etape: 'Modifier'} %}{% endblock %}
+
+{% block content %}
+{{ form_start(form) }}
+{{ form_errors(form) }}
+{% set s = form.salarie %}
+{% set a = form.affectation %}
+<div class="row g-3">
+    <div class="col-xl-6">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title">Identité & coordonnées</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-5">{{ form_row(s.nom) }}</div>
+                    <div class="col-md-5">{{ form_row(s.prenoms) }}</div>
+                    <div class="col-md-2">{{ form_row(s.sexe) }}</div>
+                    <div class="col-md-6">{{ form_row(s.dateNaissance) }}</div>
+                    <div class="col-md-6">{{ form_row(s.lieuNaissance) }}</div>
+                    <div class="col-md-6">{{ form_row(s.nationalite) }}</div>
+                    <div class="col-md-6">{{ form_row(s.numeroPiece) }}</div>
+                    <div class="col-md-6">{{ form_row(s.situationFamiliale) }}</div>
+                    <div class="col-md-6">{{ form_row(s.nombreEnfants) }}</div>
+                    <div class="col-md-6">{{ form_row(s.telephone) }}</div>
+                    <div class="col-md-6">{{ form_row(s.email) }}</div>
+                    {% if s.zoneTransport is defined %}<div class="col-md-7">{{ form_row(s.adresse) }}</div><div class="col-md-5">{{ form_row(s.zoneTransport) }}</div>{% else %}<div class="col-12">{{ form_row(s.adresse) }}</div>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-6">
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title">Poste & contrat</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">{{ form_row(a.matricule) }}</div>
+                    <div class="col-md-6">{{ form_row(a.typeContrat) }}</div>
+                    <div class="col-md-6">{{ form_row(a.poste, {help: 'Pour une promotion ou une mutation, utilisez plutôt « Changer de poste » (historique et avantages).'}) }}</div>
+                    <div class="col-md-6">{{ form_row(a.metier) }}</div>
+                    <div class="col-md-6">{{ form_row(a.service) }}</div>
+                    <div class="col-md-4">{{ form_row(a.categorie) }}</div>
+                    <div class="col-md-4">{{ form_row(a.echelon) }}</div>
+                    <div class="col-md-4">{{ form_row(a.site) }}</div>
+                    <div class="col-md-6">{{ form_row(a.dateEntree, {help: 'Point de départ de l\'historique : non modifiable.'}) }}</div>
+                    <div class="col-md-6">{{ form_row(a.dateFinContrat) }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Organismes & paiement</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">{{ form_row(s.numeroSecuriteSociale) }}</div>
+                    <div class="col-md-6">{{ form_row(s.numeroAssuranceMaladie) }}</div>
+                    <div class="col-md-4">{{ form_row(s.modePaiement) }}</div>
+                    <div class="col-md-4">{{ form_row(s.banque) }}</div>
+                    <div class="col-md-4">{{ form_row(s.numeroCompte) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary">Enregistrer</button>
+    <a href="{{ path('app_salarie_voir', {id: affectation.id}) }}" class="btn btn-light-subtle">Annuler</a>
+    <span class="ms-auto small text-body-secondary align-self-center"><i class="bi bi-info-circle me-1"></i>Le salaire et les avantages se modifient depuis la fiche (onglets Rémunération et Avantages), pour garder l'historique.</span>
+</div>
+{{ form_end(form) }}
+{% endblock %}

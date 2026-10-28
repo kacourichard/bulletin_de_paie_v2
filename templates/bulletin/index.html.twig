@@ -1,0 +1,99 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = societe.deviseEffective %}
+{% set libelle_mois = mois|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize %}
+{% set code_mois = mois|date('Y-m') %}
+{% set peut_envoyer = periode and periode.cloturee and is_granted('bulletin.envoyer') %}
+
+{% block title %}Bulletins de paie — {{ libelle_mois }}{% endblock %}
+{% block page_title %}Bulletins de paie{% endblock %}
+{% block page_subtitle %}{{ societe.raisonSociale }} · consultation, téléchargement pour impression et envoi par e-mail aux salariés.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Bulletins de paie</li>{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group">
+        <a href="{{ path('app_bulletins', {mois: precedent|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois précédent"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light-subtle fw-semibold" style="min-width: 160px; pointer-events: none;">{{ libelle_mois }}</span>
+        <a href="{{ path('app_bulletins', {mois: suivant|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois suivant"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    {% if periode and bulletins is not empty %}
+        <a href="{{ path('app_bulletin_voir', {mois: code_mois}) }}" target="_blank" class="btn btn-light-subtle"><i class="bi bi-eye me-1"></i>Voir tous</a>
+        <a href="{{ path('app_bulletin_pdf', {mois: code_mois}) }}" class="btn btn-light-subtle"><i class="bi bi-file-earmark-pdf me-1 text-danger"></i>Télécharger tous (PDF)</a>
+        {% if peut_envoyer %}
+            <form method="post" action="{{ path('app_bulletin_envoyer_tous', {mois: code_mois}) }}" data-confirm="Envoyer par e-mail le bulletin de {{ libelle_mois }} à chaque salarié ayant une adresse e-mail ?">
+                <input type="hidden" name="_token" value="{{ csrf_token('bulletins-' ~ code_mois) }}">
+                <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Envoyer à tous par e-mail</button>
+            </form>
+        {% endif %}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not periode %}
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-receipt"></i>
+        La paie de <strong>{{ libelle_mois }}</strong> n'est pas ouverte.
+        {% if is_granted('paie.voir') %}<div class="mt-3"><a href="{{ path('app_paie', {mois: code_mois}) }}" class="btn btn-primary btn-sm">Aller à la paie du mois</a></div>{% endif %}
+    </div></div>
+{% else %}
+    {% if periode.cloturee %}
+        <div class="alert alert-success d-flex gap-2"><i class="bi bi-check-circle"></i><div>Paie validée le {{ periode.clotureeLe|date('d/m/Y') }} : les bulletins sont définitifs et peuvent être envoyés aux salariés.</div></div>
+    {% else %}
+        <div class="alert alert-warning d-flex gap-2"><i class="bi bi-hourglass-split"></i>
+            <div>Paie en préparation : les bulletins sont <strong>provisoires</strong> (filigrane « PROVISOIRE »). L'envoi par e-mail sera possible une fois la paie validée.
+                {% if is_granted('paie.voir') %}<a href="{{ path('app_paie_validation', {mois: code_mois}) }}">Valider la paie</a>{% endif %}</div>
+        </div>
+    {% endif %}
+
+    {% set totalNet = 0 %}{% set totalBrut = 0 %}{% set sansEmail = 0 %}
+    {% for b in bulletins %}{% set totalNet = totalNet + b.recap.bulletin.netAPayer %}{% set totalBrut = totalBrut + b.recap.calcul.brut %}{% if not b.affectation.salarie.email %}{% set sansEmail = sansEmail + 1 %}{% endif %}{% endfor %}
+    <div class="row g-3 mb-3">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="stat-label">Bulletins</div><div class="stat-value">{{ bulletins|length }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="stat-label">Masse salariale brute</div><div class="stat-value">{{ m.montant(totalBrut, devise) }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100 border-primary-subtle"><div class="card-body"><div class="stat-label">Total net à payer</div><div class="stat-value text-primary">{{ m.montant(totalNet, devise) }}</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="stat-label">Envoyés par e-mail</div><div class="stat-value">{{ envois|filter(e => e.succes)|length }} / {{ bulletins|length }}</div>{% if sansEmail %}<div class="small text-warning-emphasis">{{ sansEmail }} salarié(s) sans e-mail</div>{% endif %}</div></div></div>
+    </div>
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" data-controller="datatable">
+                <thead><tr><th>Salarié</th><th>E-mail</th><th class="text-end">Brut</th><th class="text-end">Retenues</th><th class="text-end">Net à payer</th><th>Envoi</th><th class="text-end" data-dt-tri="non">Bulletin</th></tr></thead>
+                <tbody>
+                {% for b in bulletins %}
+                    {% set a = b.affectation %}{% set bu = b.recap.bulletin %}{% set envoi = envois[a.id] ?? null %}
+                    <tr>
+                        <td><div class="d-flex align-items-center gap-2">{{ m.avatar(a.salarie, 'avatar-sm') }}<div><div class="fw-medium">{{ a.salarie.nomComplet }}</div><div class="small text-body-secondary font-monospace">{{ a.matricule }}
+                            {% if b.recap.soldeToutCompte %}<span class="badge {{ b.provisoire ? 'text-bg-warning' : 'text-bg-success' }} badge-soft">Solde de tout compte{{ b.provisoire ? ' — provisoire' : '' }}</span>{% endif %}
+                        </div></div></div></td>
+                        <td class="small">{{ a.salarie.email ?: '' }}{% if not a.salarie.email %}<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Aucun e-mail</span>{% if is_granted('salarie.modifier') %} · <a href="{{ path('app_salarie_modifier', {id: a.id}) }}">Ajouter</a>{% endif %}{% endif %}</td>
+                        <td class="text-end" data-order="{{ b.recap.calcul.brut }}">{{ m.montant(b.recap.calcul.brut, devise) }}</td>
+                        <td class="text-end text-danger" data-order="{{ bu.totalSalarial + bu.retenues }}">{{ m.montant(bu.totalSalarial + bu.retenues, devise) }}</td>
+                        <td class="text-end fw-bold" data-order="{{ bu.netAPayer }}">{{ m.montant(bu.netAPayer, devise) }}</td>
+                        <td class="small">
+                            {% if envoi %}
+                                {% if envoi.succes %}<span class="text-success"><i class="bi bi-check2-all me-1"></i>Envoyé le {{ envoi.envoyeLe|date('d/m/Y H:i') }}</span>
+                                {% else %}<span class="text-danger" title="{{ envoi.erreur }}"><i class="bi bi-x-circle me-1"></i>Échec le {{ envoi.envoyeLe|date('d/m/Y') }}</span>{% endif %}
+                            {% else %}<span class="text-body-secondary">Non envoyé</span>{% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ path('app_bulletin_voir', {mois: code_mois, id: a.id}) }}" target="_blank" class="btn btn-sm btn-light-subtle" title="Voir"><i class="bi bi-eye"></i></a>
+                            <a href="{{ path('app_bulletin_pdf', {mois: code_mois, id: a.id}) }}" class="btn btn-sm btn-light-subtle" title="Télécharger le PDF"><i class="bi bi-file-earmark-pdf text-danger"></i></a>
+                            {# Envoi possible une fois le mois validé, ou dès l'arrêté d'un solde de tout compte. #}
+                            {% if not b.provisoire and is_granted('bulletin.envoyer') and a.salarie.email %}
+                                <form method="post" action="{{ path('app_bulletin_envoyer', {mois: code_mois, id: a.id}) }}" class="d-inline" data-confirm="Envoyer le bulletin à {{ a.salarie.email }} ?">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('bulletins-' ~ code_mois) }}">
+                                    <button class="btn btn-sm btn-primary" title="Envoyer par e-mail"><i class="bi bi-send"></i></button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="7"><div class="empty-state"><i class="bi bi-people"></i>Aucun salarié sur ce mois.</div></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

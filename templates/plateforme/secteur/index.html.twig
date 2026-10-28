@@ -1,0 +1,31 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Secteurs d'activité — {{ pays.nom }}{% endblock %}
+{% block page_title %}{{ pays.drapeau }} Secteurs d'activité — {{ pays.nom }}{% endblock %}
+{% block page_subtitle %}Taux de risque accident du travail appliqué aux sociétés de chaque secteur.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_pays') }}">Pays</a></li><li class="breadcrumb-item active">Secteurs {{ pays.nom }}</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_cotisations', {pays: pays.id}) }}" class="btn btn-light-subtle"><i class="bi bi-percent me-1"></i>Cotisations</a>
+    <a href="{{ path('app_plateforme_secteur_nouveau', {pays: pays.id}) }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nouveau secteur</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px;">
+    <div class="table-responsive">
+        <table class="table table-hover" data-controller="datatable">
+            <thead><tr><th>Secteur d'activité</th><th class="text-end">Taux de risque AT</th><th></th></tr></thead>
+            <tbody>
+            {% for s in secteurs %}
+                <tr class="{{ not s.actif ? 'text-body-secondary' }}">
+                    <td class="fw-medium">{{ s.libelle }}{% if not s.actif %} <span class="badge text-bg-secondary badge-soft">Inactif</span>{% endif %}</td>
+                    <td class="text-end">{{ s.tauxRisque + 0 }} %</td>
+                    <td class="text-end"><a href="{{ path('app_plateforme_secteur_modifier', {pays: pays.id, id: s.id}) }}" class="btn btn-sm btn-light-subtle">Modifier</a></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="3"><div class="empty-state"><i class="bi bi-buildings"></i>Aucun secteur pour ce pays : le taux accident du travail de la cotisation s'applique.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

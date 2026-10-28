@@ -1,0 +1,61 @@
+{# Champs communs du formulaire société (plateforme et espace société). #}
+<div class="section-form">
+    <div class="section-form-title">Identité</div>
+    <div class="section-form-desc">Nom et localisation de la société. Le pays détermine la devise et, sauf choix contraire, la législation de paie.</div>
+    <div class="row">
+        {% if form.succursale is defined %}<div class="col-12">{{ form_row(form.succursale) }}</div>{% endif %}
+        <div class="col-md-8">{{ form_row(form.raisonSociale) }}</div>
+        <div class="col-md-4">{{ form_row(form.dateCreation) }}</div>
+        <div class="col-md-8">{{ form_row(form.pays) }}</div>
+        <div class="col-md-4">{{ form_row(form.devise) }}</div>
+        <div class="col-md-8">{{ form_row(form.legislationPaie) }}</div>
+    </div>
+</div>
+<hr class="my-4">
+<div class="section-form">
+    <div class="section-form-title">Logo</div>
+    <div class="section-form-desc">Imprimé en en-tête de chaque bulletin de paie et affiché dans l'application.</div>
+    <div class="d-flex flex-wrap gap-4 align-items-start">
+        <div class="logo-apercu" id="apercu-logo">
+            {% set societe_form = form.vars.data %}
+            {% if societe_form and societe_form.logo %}
+                <img src="{{ asset('uploads/logos/' ~ societe_form.logo) }}" alt="Logo actuel">
+            {% else %}
+                <span class="text-body-secondary small text-center"><i class="bi bi-image fs-3 d-block mb-1"></i>Aucun logo</span>
+            {% endif %}
+        </div>
+        <div class="flex-grow-1" style="min-width: 260px;">
+            {{ form_row(form.logoFichier, {attr: {'data-apercu': '#apercu-logo'}}) }}
+            {% if societe_form and societe_form.logo %}
+                <div class="form-check">{{ form_widget(form.supprimerLogo) }}{{ form_label(form.supprimerLogo) }}</div>
+            {% else %}
+                {% do form.supprimerLogo.setRendered %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+<hr class="my-4">
+<div class="section-form">
+    <div class="section-form-title">Coordonnées</div>
+    <div class="row">
+        <div class="col-md-8">{{ form_row(form.adresse) }}</div>
+        <div class="col-md-4">{{ form_row(form.ville) }}</div>
+        <div class="col-md-6">{{ form_row(form.telephone) }}</div>
+        <div class="col-md-6">{{ form_row(form.email) }}</div>
+    </div>
+</div>
+<hr class="my-4">
+<div class="section-form">
+    <div class="section-form-title">Immatriculations</div>
+    <div class="section-form-desc">Numéros officiels repris sur les bulletins et les déclarations.</div>
+    <div class="row">
+        <div class="col-md-4">{{ form_row(form.numeroEmployeur) }}</div>
+        <div class="col-md-4">{{ form_row(form.numeroFiscal) }}</div>
+        <div class="col-md-4">{{ form_row(form.registreCommerce) }}</div>
+        <div class="col-md-4">{{ form_row(form.secteurActivite) }}</div>
+    </div>
+</div>
+{% if form.active is defined %}
+    <hr class="my-4">
+    <div class="form-check form-switch">{{ form_widget(form.active) }}{{ form_label(form.active) }}</div>
+{% endif %}

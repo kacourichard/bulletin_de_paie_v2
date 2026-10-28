@@ -1,0 +1,4 @@
+{# Montant compact pour les états (sans devise, vide si nul) : 1 234 567 ou 1 234,50. #}
+{% macro nombre(valeur, zero = '') %}
+    {%- if valeur is null or valeur + 0 == 0 -%}{{ zero }}{%- else -%}{{ (valeur + 0)|number_format((valeur + 0) == (valeur + 0)|round ? 0 : 2, ',', ' ') }}{%- endif -%}
+{% endmacro %}

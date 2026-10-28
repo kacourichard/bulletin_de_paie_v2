@@ -1,0 +1,28 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Mot de passe{% endblock %}
+{% block page_title %}Changer mon mot de passe{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_compte') }}">Mon profil</a></li><li class="breadcrumb-item active">Mot de passe</li>{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-6">
+        {% if force %}
+            <div class="alert alert-warning d-flex gap-2">
+                <i class="bi bi-shield-exclamation"></i>
+                <div>Vous utilisez un mot de passe provisoire. Choisissez votre propre mot de passe pour continuer.</div>
+            </div>
+        {% endif %}
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_row(form.actuel) }}
+                    {{ form_row(form.nouveau.first) }}
+                    {{ form_row(form.nouveau.second) }}
+                    <button class="btn btn-primary">Mettre à jour le mot de passe</button>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

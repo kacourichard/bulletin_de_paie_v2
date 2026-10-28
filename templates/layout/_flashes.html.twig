@@ -1,0 +1,28 @@
+{% set icones = {success: 'check-circle-fill', danger: 'exclamation-octagon-fill', warning: 'exclamation-triangle-fill', info: 'info-circle-fill'} %}
+
+{% for type, messages in app.flashes(['success', 'danger', 'warning', 'info']) %}
+    {% for message in messages %}
+        <div class="alert alert-{{ type }} alert-dismissible d-flex align-items-center gap-2 shadow-sm" role="alert">
+            <i class="bi bi-{{ icones[type] }}"></i>
+            <div>{{ message|nl2br }}</div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
+{# Mot de passe provisoire : affiché une seule fois, à transmettre à l'utilisateur. #}
+{% for info in app.flashes('mot_de_passe') %}
+    <div class="alert alert-warning shadow-sm" role="alert">
+        <div class="d-flex gap-3">
+            <i class="bi bi-key-fill fs-4"></i>
+            <div class="flex-grow-1">
+                <div class="fw-semibold mb-1">Mot de passe provisoire pour {{ info.email }}</div>
+                <p class="mb-2 small">Transmettez-le à l'utilisateur de façon sûre. Il ne sera plus affiché, et devra être changé à la première connexion.</p>
+                <div class="secret-box">
+                    <span>{{ info.motDePasse }}</span>
+                    <button type="button" class="btn btn-sm btn-light-subtle btn-icon" data-copy="{{ info.motDePasse }}" title="Copier"><i class="bi bi-clipboard"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endfor %}

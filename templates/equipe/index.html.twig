@@ -1,0 +1,119 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Utilisateurs{% endblock %}
+{% block page_subtitle %}Personnes ayant accès à <strong>{{ societe.raisonSociale }}</strong> et leur rôle.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Utilisateurs</li>{% endblock %}
+{% block page_actions %}
+    {% if is_granted('role.gerer') %}
+        <a href="{{ path('app_role') }}" class="btn btn-light-subtle"><i class="bi bi-shield-lock me-1"></i>Rôles & permissions</a>
+    {% endif %}
+    {% if is_granted('utilisateur.gerer') %}
+        <a href="{{ path('app_equipe_ajouter') }}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Ajouter un utilisateur</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% set peut_gerer = is_granted('utilisateur.gerer') %}
+<div class="alert alert-light border d-flex flex-wrap align-items-center gap-2 py-2">
+    <i class="bi bi-shield-lock text-danger"></i>
+    <span class="small">Administrée par la succursale <strong>{{ societe.succursale.nom }}</strong> :
+        {% for u in societe.succursale.administrateurs %}{{ u.nomComplet }}{{ not loop.last ? ', ' }}{% endfor %}
+        — tous les droits sur la société.</span>
+</div>
+<div class="card">
+    <div class="card-header flex-wrap">
+        <form class="d-flex flex-wrap gap-2 w-100" method="get">
+            <select name="role" class="form-select" style="max-width: 220px;" onchange="this.form.submit()">
+                <option value="">Tous les rôles</option>
+                {% for r in societe.roles %}
+                    <option value="{{ r.code }}"{{ filtreRole == r.code ? ' selected' }}>{{ r.libelle }}</option>
+                {% endfor %}
+            </select>
+            {% if filtreRole %}<a href="{{ path('app_equipe') }}" class="btn btn-link">Réinitialiser</a>{% endif %}
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover" data-controller="datatable">
+            <thead>
+                <tr><th>Utilisateur</th><th>Rôle</th><th>Statut</th><th>Dernière connexion</th>{% if peut_gerer %}<th class="text-end" data-dt-tri="non">Actions</th>{% endif %}</tr>
+            </thead>
+            <tbody>
+            {% for m in membres %}
+                {% set u = m.user %}
+                {% set soi = u.id == app.user.id %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="avatar">{{ u.initiales }}</span>
+                            <div>
+                                <div class="fw-medium">{{ u.nomComplet }}{% if soi %} <span class="badge text-bg-light border badge-soft">Vous</span>{% endif %}</div>
+                                <div class="small text-body-secondary">{{ u.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if peut_gerer and not soi %}
+                            <form method="post" action="{{ path('app_equipe_role', {id: m.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('membre-' ~ m.id) }}">
+                                <select name="role" class="form-select form-select-sm" style="min-width: 170px;" onchange="this.form.submit()" aria-label="Rôle">
+                                    {% for r in societe.roles %}
+                                        <option value="{{ r.id }}"{{ r.id == m.role.id ? ' selected' }}>{{ r.libelle }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        {% else %}
+                            <span class="badge text-bg-{{ m.role.couleur }} badge-soft">{{ m.role.libelle }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if not u.actif %}
+                            <span class="badge-statut text-danger">Compte désactivé</span>
+                        {% elseif m.actif %}
+                            <span class="badge-statut text-success">Actif</span>
+                        {% else %}
+                            <span class="badge-statut text-secondary">Suspendu</span>
+                        {% endif %}
+                        {% if u.doitChangerMotDePasse %}<div class="small text-warning-emphasis"><i class="bi bi-hourglass-split"></i> Première connexion en attente</div>{% endif %}
+                    </td>
+                    <td class="text-body-secondary small" data-order="{{ u.derniereConnexion ? u.derniereConnexion|date('Y-m-d H:i') : '' }}">{{ u.derniereConnexion ? u.derniereConnexion|date('d/m/Y H:i') : 'Jamais' }}</td>
+                    {% if peut_gerer %}
+                        <td class="text-end">
+                            {% if not soi %}
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light-subtle btn-icon" data-bs-toggle="dropdown" aria-label="Actions"><i class="bi bi-three-dots"></i></button>
+                                    <ul class="dropdown-menu dropdown-menu-end shadow">
+                                        <li>
+                                            <form method="post" action="{{ path('app_equipe_statut', {id: m.id}) }}">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('membre-' ~ m.id) }}">
+                                                <button class="dropdown-item">
+                                                    {% if m.actif %}<i class="bi bi-pause-circle me-2"></i>Suspendre l'accès{% else %}<i class="bi bi-play-circle me-2"></i>Réactiver l'accès{% endif %}
+                                                </button>
+                                            </form>
+                                        </li>
+                                        <li>
+                                            <form method="post" action="{{ path('app_equipe_reinitialiser', {id: m.id}) }}" data-confirm="Générer un nouveau mot de passe provisoire pour {{ u.nomComplet }} ?">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('membre-' ~ m.id) }}">
+                                                <button class="dropdown-item"><i class="bi bi-key me-2"></i>Réinitialiser le mot de passe</button>
+                                            </form>
+                                        </li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form method="post" action="{{ path('app_equipe_retirer', {id: m.id}) }}" data-confirm="Retirer {{ u.nomComplet }} de la société ?">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('membre-' ~ m.id) }}">
+                                                <button class="dropdown-item text-danger"><i class="bi bi-person-x me-2"></i>Retirer de la société</button>
+                                            </form>
+                                        </li>
+                                    </ul>
+                                </div>
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                </tr>
+            {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-people"></i>Aucun utilisateur ne correspond.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

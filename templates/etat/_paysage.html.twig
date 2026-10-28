@@ -1,0 +1,23 @@
+{#
+    États en paysage (livre de paie, fiche individuelle) : page A4 couchée à l'impression,
+    et tableau réduit automatiquement s'il dépasse la largeur de la page.
+#}
+<style>
+    @page { size: A4 landscape; margin: 0; }
+</style>
+<script>
+    (function () {
+        function ajuster() {
+            document.querySelectorAll('.rapport-page.paysage .etat-tableau').forEach(function (tableau) {
+                var page = tableau.closest('.rapport-page');
+                var style = getComputedStyle(page);
+                var disponible = page.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+                tableau.style.zoom = 1;
+                var ratio = disponible / tableau.scrollWidth;
+                tableau.style.zoom = ratio < 1 ? Math.max(ratio, 0.5) : 1;
+            });
+        }
+        window.addEventListener('load', ajuster);
+        window.addEventListener('beforeprint', ajuster);
+    })();
+</script>

@@ -1,0 +1,77 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+{% import 'salarie/_avantages_form.html.twig' as avantages_form %}
+
+{% set devise = affectation.societe.deviseEffective %}
+{% block title %}Changer de poste{% endblock %}
+{% block page_subtitle %}{{ affectation.salarie.nomComplet }} · actuellement <strong>{{ affectation.poste ?: 'poste non renseigné' }}</strong>{% endblock %}
+{% block breadcrumb %}{% include 'salarie/_fil.html.twig' with {etape: 'Changer de poste'} %}{% endblock %}
+
+{% block content %}
+{{ form_start(form) }}
+{{ form_errors(form) }}
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-briefcase me-2 text-primary"></i>Nouveau poste</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">{{ form_row(form.date) }}</div>
+                    <div class="col-md-8">{{ form_row(form.poste) }}</div>
+                    <div class="col-md-4">{{ form_row(form.metier) }}</div>
+                    <div class="col-md-4">{{ form_row(form.service) }}</div>
+                    <div class="col-md-2">{{ form_row(form.categorie) }}</div>
+                    <div class="col-md-2">{{ form_row(form.echelon) }}</div>
+                    <div class="col-12">{{ form_row(form.commentaire) }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-gift me-2 text-primary"></i>Avantages liés au poste</h2></div>
+            <div class="card-body">
+                {% if actuels is not empty %}
+                    <p class="small text-body-secondary">Ajustez le montant de chaque avantage pour le nouveau poste (à la hausse ou à la baisse). <strong>0</strong> arrête l'avantage. L'ancien montant reste dans l'historique jusqu'à la veille.</p>
+                    <div class="table-responsive mb-3">
+                        <table class="table align-middle">
+                            <thead><tr><th>Rubrique</th><th>Avantage</th><th class="text-end">Montant actuel</th><th style="width: 220px;">Nouveau montant</th></tr></thead>
+                            <tbody>
+                            {% for a in actuels %}
+                                {% set champ = form['avantage_' ~ a.id] %}
+                                <tr>
+                                    <td class="font-monospace small">{{ a.rubrique ? a.rubrique.code : '—' }}</td>
+                                    <td class="fw-medium">{{ a.libelle }}</td>
+                                    <td class="text-end text-body-secondary">{{ m.montant(a.montant, devise) }}</td>
+                                    <td>{{ form_widget(champ) }}{{ form_errors(champ) }}{% do champ.setRendered %}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="small text-body-secondary">Aucun avantage en cours.</p>
+                {% endif %}
+                <div class="fw-semibold small mb-2">Nouveaux avantages pour ce poste</div>
+                {{ avantages_form.bloc(form.nouveaux, 'nouveaux-avantages', form.nouveaux.vars.prototype.rubrique.vars.choices is not empty) }}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card position-sticky" style="top: calc(var(--bp-topbar-height) + 1rem);">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-cash-stack me-2 text-success"></i>Rémunération</h2></div>
+            <div class="card-body">
+                {% if remuneration %}
+                    <p class="small text-body-secondary">Actuellement : {{ m.montant(remuneration.salaireBase, devise) }} + {{ m.montant(remuneration.sursalaire, devise) }} de sursalaire.</p>
+                {% endif %}
+                {{ form_row(form.salaireBase) }}
+                {{ form_row(form.sursalaire) }}
+                <p class="small text-body-secondary">Si les montants changent, une ligne « Changement de poste » est ajoutée à l'historique des salaires.</p>
+                <button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>Enregistrer le changement</button>
+                <a href="{{ path('app_salarie_voir', {id: affectation.id}) }}" class="btn btn-light-subtle w-100 mt-2">Annuler</a>
+            </div>
+        </div>
+    </div>
+</div>
+{{ form_end(form) }}
+{% endblock %}

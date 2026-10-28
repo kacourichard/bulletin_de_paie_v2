@@ -1,0 +1,52 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = affectation.societe.deviseEffective %}
+{% block title %}Revaloriser le salaire{% endblock %}
+{% block page_subtitle %}{{ affectation.salarie.nomComplet }} · <span class="font-monospace">{{ affectation.matricule }}</span>{% endblock %}
+{% block breadcrumb %}{% include 'salarie/_fil.html.twig' with {etape: 'Revaloriser'} %}{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_errors(form) }}
+                    <div class="row">
+                        <div class="col-md-6">{{ form_row(form.dateEffet) }}</div>
+                        <div class="col-md-6">{{ form_row(form.motif) }}</div>
+                        <div class="col-md-6">{{ form_row(form.salaireBase) }}</div>
+                        <div class="col-md-6">{{ form_row(form.sursalaire) }}</div>
+                        <div class="col-12">{{ form_row(form.commentaire) }}</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary"><i class="bi bi-graph-up-arrow me-1"></i>Enregistrer la nouvelle rémunération</button>
+                        <a href="{{ path('app_salarie_voir', {id: affectation.id, _fragment: 'remuneration'}) }}" class="btn btn-light-subtle">Annuler</a>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Rémunération actuelle</h2></div>
+            <div class="card-body">
+                {% if actuelle %}
+                    <dl class="info-list">
+                        <dt>Depuis le</dt><dd>{{ actuelle.dateEffet|date('d/m/Y') }}</dd>
+                        <dt>Salaire de base</dt><dd>{{ m.montant(actuelle.salaireBase, devise) }}</dd>
+                        <dt>Sursalaire</dt><dd>{{ m.montant(actuelle.sursalaire, devise) }}</dd>
+                        <dt>Total</dt><dd class="fw-semibold">{{ m.montant(actuelle.salaireTotal, devise) }}</dd>
+                    </dl>
+                {% endif %}
+                <hr>
+                <p class="small text-body-secondary mb-0">
+                    <i class="bi bi-info-circle me-1"></i>La rémunération actuelle reste dans l'historique ; la nouvelle s'applique à partir de la date d'effet.
+                    Pour rectifier une erreur de saisie, utilisez plutôt « Corriger » dans l'onglet Rémunération.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

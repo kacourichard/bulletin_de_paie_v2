@@ -1,0 +1,52 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Plateforme{% endblock %}
+{% block page_title %}Vue d'ensemble de la plateforme{% endblock %}
+{% block page_subtitle %}Administrez les succursales, leurs administrateurs, les pays et les comptes.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Plateforme</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_succursale_nouvelle') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nouvelle succursale</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    {% for stat in [
+        {label: 'Succursales actives', valeur: nbSuccursales, icone: 'diagram-3', couleur: 'danger', route: 'app_plateforme_succursales'},
+        {label: 'Sociétés actives', valeur: nbSocietes, icone: 'buildings', couleur: 'success', route: 'app_plateforme_societes'},
+        {label: 'Pays ouverts', valeur: nbPays, icone: 'globe-americas', couleur: 'primary', route: 'app_plateforme_pays'},
+        {label: 'Comptes actifs', valeur: nbUtilisateurs, icone: 'people', couleur: 'info', route: 'app_plateforme_utilisateurs'},
+    ] %}
+        <div class="col-sm-6 col-xl-3">
+            <a href="{{ path(stat.route) }}" class="card h-100 text-decoration-none text-reset">
+                <div class="card-body stat-card">
+                    <div class="stat-icon bg-{{ stat.couleur }}-subtle text-{{ stat.couleur }}"><i class="bi bi-{{ stat.icone }}"></i></div>
+                    <div><div class="stat-label">{{ stat.label }}</div><div class="stat-value">{{ stat.valeur }}</div></div>
+                </div>
+            </a>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header"><h2 class="card-title">Dernières sociétés créées</h2>
+        <a href="{{ path('app_plateforme_societes') }}" class="btn btn-sm btn-light-subtle">Toutes les sociétés</a></div>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead><tr><th>Société</th><th>Pays</th><th>Succursale</th><th>Créée le</th><th></th></tr></thead>
+            <tbody>
+            {% for s in dernieresSocietes %}
+                <tr>
+                    <td><div class="d-flex align-items-center gap-2">{% include 'societe/_logo.html.twig' with {societe: s, taille: 'sm'} %}<span class="fw-medium">{{ s.raisonSociale }}</span></div></td>
+                    <td>{{ s.pays.drapeau }} {{ s.pays.nom }}</td>
+                    <td>{{ s.succursale.nom }}</td>
+                    <td class="text-body-secondary">{{ s.createdAt|date('d/m/Y') }}</td>
+                    <td class="text-end"><a href="{{ path('app_plateforme_societe_voir', {id: s.id}) }}" class="btn btn-sm btn-light-subtle">Ouvrir</a></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-buildings"></i>Aucune société pour le moment.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

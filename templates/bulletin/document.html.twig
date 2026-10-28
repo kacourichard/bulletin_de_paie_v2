@@ -1,0 +1,214 @@
+{#
+    Bulletins de paie (HTML autonome, compatible PDF/dompdf : mise en page en tableaux, styles en ligne).
+    Variables : periode, bulletins (list<{affectation, recap, provisoire}>), logoSociete / logoCipaie (data URI ou URL),
+    provisoire (bool : au moins un bulletin provisoire), ecran (bool : barre d'outils navigateur).
+#}
+{%- macro f(v, d) -%}
+    {%- if v is not null and v != '' -%}{{ (v + 0)|number_format(d, ',', ' ') }}{%- endif -%}
+{%- endmacro -%}
+{%- macro t(v) -%}
+    {%- if v is not null and v != '' -%}{{ (v + 0) == (v + 0)|round ? (v + 0)|number_format(0, ',', ' ') : (v + 0)|number_format(2, ',', ' ') }}{%- endif -%}
+{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Bulletins de paie — {{ periode.libelle }} — {{ periode.societe.raisonSociale }}</title>
+<style>
+    @page { size: A4; margin: 10mm 9mm; }
+    * { box-sizing: border-box; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 8.6px; color: #111; margin: 0; }
+    .page { page-break-after: always; position: relative; }
+    .page:last-child { page-break-after: auto; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { vertical-align: top; }
+    .cadre { border: 1px solid #000; }
+    .entete td { border: 1px solid #000; padding: 4px; }
+    .titre { font-size: 17px; font-weight: bold; text-align: center; letter-spacing: 1px; }
+    .ident td { padding: 1px 3px; }
+    .ident .lib { width: 85px; }
+    .ident .val { font-weight: bold; }
+    .lignes th { border: 1px solid #000; background: #e5e7eb; padding: 3px; font-size: 8px; }
+    .lignes th.groupe { background: #6b7280; color: #fff; }
+    .lignes td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 1.5px 4px; }
+    .lignes tr.sep td { border-top: 1px dashed #000; }
+    .num { text-align: right; white-space: nowrap; }
+    .code { text-align: center; width: 48px; }
+    .b { font-weight: bold; }
+    .soustitre td { padding-top: 6px; }
+    .vide td { height: 6px; }
+    .pied td { border: 1px solid #000; padding: 3px 5px; }
+    .net { font-size: 13px; font-weight: bold; }
+    .filigrane { position: absolute; top: 330px; left: 0; right: 0; text-align: center; font-size: 60px; color: rgba(220, 38, 38, .13); transform: rotate(-30deg); font-weight: bold; }
+    .mention { font-size: 7.5px; color: #555; margin-top: 4px; }
+    .mention img { height: 14px; vertical-align: middle; }
+    .barre { position: sticky; top: 0; background: #fff; border-bottom: 1px solid #ccc; padding: 8px 12px; font-family: Arial, sans-serif; font-size: 13px; display: flex; justify-content: space-between; }
+    .ecran { background: #e5e7eb; }
+    .ecran .page { width: 210mm; margin: 12px auto; padding: 9mm; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+    @media print { .barre { display: none; } .ecran { background: #fff; } .ecran .page { margin: 0; padding: 0; box-shadow: none; width: auto; } }
+</style>
+</head>
+<body class="{{ ecran|default(false) ? 'ecran' }}">
+{% if ecran|default(false) %}
+    <div class="barre">
+        <span><strong>{{ bulletins|length }} bulletin(s)</strong> — {{ periode.libelle }} — {{ periode.societe.raisonSociale }}{% if provisoire %} · <span style="color:#b45309">paie non validée : bulletins provisoires</span>{% endif %}</span>
+        <span>{% if lienPdf|default(null) %}<a href="{{ lienPdf }}">Télécharger le PDF</a> · {% endif %}<a href="#" onclick="window.print(); return false;">Imprimer</a></span>
+    </div>
+{% endif %}
+
+{% for b in bulletins %}
+    {% set a = b.affectation %}
+    {% set s = a.salarie %}
+    {% set r = b.recap %}
+    {% set c = r.calcul %}
+    {% set bu = r.bulletin %}
+    {% set societe = periode.societe %}
+    {# Place de chaque rubrique : section 1 avant le brut, section 2 avec les charges salariales, section 3 après le salaire net. #}
+    {% set dansBrut = r.lignes|filter(l => l.section == 1) %}
+    {% set avecCharges = r.lignes|filter(l => l.section == 2) %}
+    {% set apresNet = r.lignes|filter(l => l.section == 3) %}
+    {% set retenuesSection2 = 0 %}{% for l in avecCharges %}{% set retenuesSection2 = retenuesSection2 + l.montant %}{% endfor %}
+    {% set dec = r.parametre ? r.parametre.decimales : 0 %}
+<div class="page">
+    {% if b.provisoire %}<div class="filigrane">PROVISOIRE</div>{% endif %}
+
+    <table class="entete">
+        <tr>
+            <td style="width: 52%; text-align: center;">
+                {% if logoSociete %}<img src="{{ logoSociete }}" style="max-height: 55px; max-width: 200px;"><br>{% endif %}
+                <div class="b" style="font-size: 11px;">{{ societe.raisonSociale }}</div>
+                <div style="text-align: left; margin-top: 3px;">
+                    {% if societe.adresse or societe.ville %}{{ societe.adresse }}{{ societe.adresse and societe.ville ? ' — ' }}{{ societe.ville }}<br>{% endif %}
+                    {% if societe.numeroEmployeur %}{{ societe.pays.organismeSocial ?: 'N° employeur' }} : {{ societe.numeroEmployeur }}{% endif %}
+                    {% if societe.numeroFiscal %} &nbsp;&nbsp; N° Contribuable : {{ societe.numeroFiscal }}{% endif %}
+                </div>
+            </td>
+            <td style="width: 48%;">
+                <div class="titre">BULLETIN DE PAIE</div>
+                {% if r.soldeToutCompte %}
+                    <div class="titre" style="font-size: 12px; margin-top: 2px; color: #c00000;">SOLDE DE TOUT COMPTE</div>
+                    <div style="text-align: center; color: #c00000;">Sortie le {{ a.dateSortie|date('d/m/Y') }}{% if a.motifSortie %} — {{ a.motifSortie.libelle }}{% endif %}</div>
+                {% endif %}
+                <div style="text-align: center; margin-top: 10px; border-top: 1px solid #000; padding-top: 3px;">
+                    Période de paie : Du {{ periode.debut|date('d/m/Y') }} au {{ periode.fin|date('d/m/Y') }}
+                </div>
+                <div style="text-align: center; border-top: 1px solid #000; margin-top: 3px; padding-top: 3px;">
+                    NOM ET ADRESSE DU SALARIÉ<br>
+                    <span class="b" style="font-size: 10px;">{{ s.nomComplet }}</span>
+                    {% if s.adresse %}<br>{{ s.adresse }}{% endif %}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <table class="ident cadre" style="border-top: 0;">
+        <tr>
+            <td class="lib">Matricule</td><td class="val">{{ a.matricule }}</td>
+            <td class="lib">Nbre part</td><td class="val">{{ c.parts is not null ? _self.t(c.parts) : '—' }}</td>
+            <td class="lib">Nationalité</td><td class="val">{{ s.nationaliteNom ?: '—' }}</td>
+        </tr>
+        <tr>
+            <td class="lib">Catégorie</td><td class="val">{{ a.categorie ?: '—' }}</td>
+            <td class="lib">Date embauche</td><td class="val">{{ a.dateEntree|date('d/m/Y') }}</td>
+            <td class="lib">{{ societe.pays.organismeSocial ?: 'N° Séc. sociale' }}</td><td class="val">{{ s.numeroSecuriteSociale ?: '—' }}</td>
+        </tr>
+        <tr>
+            <td class="lib">Fonction</td><td class="val">{{ a.poste ?: '—' }}</td>
+            <td class="lib">Ancienneté</td><td class="val">{{ c.anciennete.annees }} an(s)</td>
+            <td class="lib">CMU</td><td class="val">{{ s.numeroAssuranceMaladie ?: '—' }}</td>
+        </tr>
+        <tr>
+            <td class="lib">Échelon</td><td class="val">{{ a.echelon ?: '—' }}</td>
+            <td class="lib">Jours</td><td class="val">{{ _self.t(r.jours) }}</td>
+            <td class="lib">Situation</td><td class="val">{{ s.situationFamiliale ? s.situationFamiliale.libelle : '—' }}, {{ s.nombreEnfants }} enf.</td>
+        </tr>
+    </table>
+
+    <table class="lignes" style="margin-top: 4px; border-bottom: 1px solid #000;">
+        <thead>
+            <tr><th colspan="2"></th><th colspan="4" class="groupe">PART AGENT</th><th colspan="2" class="groupe">PART PATRONALE</th></tr>
+            <tr><th class="code">N° Rubriques</th><th>Libellé</th><th style="width: 62px;">Base</th><th style="width: 42px;">Taux</th><th style="width: 62px;">Gains</th><th style="width: 62px;">Retenues</th><th style="width: 42px;">Taux P.P</th><th style="width: 62px;">Montant P.P</th></tr>
+        </thead>
+        <tbody>
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            {% for l in dansBrut %}
+                <tr><td class="code">{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ _self.t(l.base) }}</td><td class="num">{{ _self.t(l.taux) }}</td><td class="num">{{ _self.f(l.montant, dec) }}</td><td></td><td></td><td></td></tr>
+            {% endfor %}
+            <tr><td class="code">{{ r.parametre ? r.parametre.codeBrut : '2000' }}</td><td class="b">Salaire Brut</td><td></td><td></td><td class="num b">{{ _self.f(c.brut, dec) }}</td><td></td><td></td><td></td></tr>
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            <tr class="sep"><td class="code">{{ r.parametre ? r.parametre.codeBrutImposable : '2001' }}</td><td>Brut Imposable</td><td></td><td></td><td class="num b">{{ _self.f(c.brutImposable, dec) }}</td><td></td><td></td><td></td></tr>
+            <tr class="sep vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+            {% if bu.impot %}
+                <tr><td class="code">{{ bu.impot.code }}</td><td>{{ bu.impot.libelle }}</td><td class="num">{{ _self.f(bu.impot.base, dec) }}</td><td></td><td></td><td class="num">{{ _self.f(bu.impot.montant, dec) }}</td><td></td><td></td></tr>
+            {% endif %}
+            {% for l in bu.salariales %}
+                <tr><td class="code">{{ l.code }}</td><td>Retenue {{ l.libelle }}</td><td class="num">{{ _self.f(l.base, dec) }}</td><td class="num">{{ _self.t(l.taux) }}%</td><td></td><td class="num">{{ _self.f(l.montant, dec) }}</td><td></td><td></td></tr>
+            {% endfor %}
+            {% for l in avecCharges %}
+                <tr><td class="code">{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ _self.t(l.base) }}</td><td class="num">{{ _self.t(l.taux) }}</td><td></td><td class="num">{{ _self.f(l.montant, dec) }}</td><td></td><td></td></tr>
+            {% endfor %}
+            <tr class="soustitre"><td></td><td class="b">Total Charges Salariales</td><td></td><td></td><td></td><td class="num b">{{ _self.f(bu.totalSalarial + retenuesSection2, dec) }}</td><td></td><td></td></tr>
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            <tr class="sep"><td class="code">{{ r.parametre ? r.parametre.codeSalaireNet : '4000' }}</td><td class="b">SALAIRE NET</td><td></td><td></td><td class="num b">{{ _self.f(bu.salaireNet - retenuesSection2, dec) }}</td><td></td><td></td><td></td></tr>
+            <tr class="sep vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+
+            {% for l in apresNet %}
+                <tr><td class="code">{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ _self.t(l.base) }}</td><td class="num">{{ _self.t(l.taux) }}</td><td class="num">{% if l.gain %}{{ _self.f(l.montant, dec) }}{% endif %}</td><td class="num">{% if not l.gain %}{{ _self.f(l.montant, dec) }}{% endif %}</td><td></td><td></td></tr>
+            {% endfor %}
+            {% if bu.arrondi != 0 %}
+                <tr><td class="code">{{ r.parametre ? r.parametre.codeArrondi }}</td><td>Arrondi</td><td></td><td></td><td class="num">{% if bu.arrondi < 0 %}{{ _self.f(-bu.arrondi, dec) }}{% endif %}</td><td class="num">{% if bu.arrondi > 0 %}{{ _self.f(bu.arrondi, dec) }}{% endif %}</td><td></td><td></td></tr>
+            {% endif %}
+
+            <tr class="sep"><td></td><td class="b">CHARGE PATRONALE</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            {% for l in bu.patronalesFiscales %}
+                <tr><td class="code">{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ _self.f(l.base, dec) }}</td><td></td><td></td><td></td><td class="num">{{ _self.t(l.taux) }}%</td><td class="num">{{ _self.f(l.montant, dec) }}</td></tr>
+            {% endfor %}
+            {% if bu.patronalesFiscales %}<tr><td></td><td class="b">Total Charges Fiscales Employeurs</td><td></td><td></td><td></td><td></td><td></td><td class="num b">{{ _self.f(bu.totalPatronalFiscal, dec) }}</td></tr>{% endif %}
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            {% for l in bu.patronalesSociales %}
+                <tr><td class="code">{{ l.code }}</td><td>{{ l.libelle }}</td><td class="num">{{ _self.f(l.base, dec) }}</td><td></td><td></td><td></td><td class="num">{{ _self.t(l.taux) }}%</td><td class="num">{{ _self.f(l.montant, dec) }}</td></tr>
+            {% endfor %}
+            {% if bu.patronalesSociales %}<tr><td></td><td class="b">Total Charges Sociales Employeurs</td><td></td><td></td><td></td><td></td><td></td><td class="num b">{{ _self.f(bu.totalPatronalSocial, dec) }}</td></tr>{% endif %}
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            <tr><td></td><td class="b">Total Charges Patronales</td><td></td><td></td><td></td><td></td><td></td><td class="num b">{{ _self.f(bu.totalPatronal, dec) }}</td></tr>
+            <tr class="vide"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        </tbody>
+    </table>
+
+    {% set totalRetenues = r.retenuesTotales %}
+    {% set totalGains = r.totalGains %}
+    <table class="pied" style="margin-top: 4px;">
+        <tr>
+            <td rowspan="3" style="width: 60%;">
+                <div class="b" style="text-align: center; font-size: 11px; margin-bottom: 4px;">CUMUL DE PAIE</div>
+                {# Cumuls de l'année de paie (depuis le mois anniversaire de l'embauche), comme en v1. #}
+                {% set cu = b.cumuls %}
+                <table>
+                    <tr style="text-align: center;"><td style="border: 0; width: 34%;">Jours fiscaux</td><td style="border: 0; width: 33%;">Brut imposable</td><td style="border: 0; width: 33%;">{{ r.parametre ? r.parametre.impotLibelle|replace({'Retenue ': ''}) : 'Impôt' }}</td></tr>
+                    <tr style="text-align: center;"><td style="border: 0;">{{ _self.t(cu.jours) }}</td><td style="border: 0;">{{ _self.f(cu.brutImposable, dec) }}</td><td style="border: 0;">{{ _self.f(cu.impot, dec) }}</td></tr>
+                    <tr style="text-align: center;"><td style="border: 0;"></td><td style="border: 0; padding-top: 4px;">Brut CNPS</td><td style="border: 0;"></td></tr>
+                    <tr style="text-align: center;"><td style="border: 0;"></td><td style="border: 0;">{{ _self.f(cu.cnps, dec) }}</td><td style="border: 0;"></td></tr>
+                    <tr style="text-align: center;"><td style="border: 0; padding-top: 4px;">Brut congé</td><td style="border: 0; padding-top: 4px;">Jours depuis dernier congé</td><td style="border: 0; padding-top: 4px;">Congé acquis</td></tr>
+                    <tr style="text-align: center;"><td style="border: 0;">{{ _self.f(cu.brut, dec) }}</td><td style="border: 0;">{{ _self.t(cu.joursDepuisConge) }}</td><td style="border: 0;">{{ cu.congeAcquis }}</td></tr>
+                </table>
+            </td>
+            <td>GAINS</td><td class="num">{{ _self.f(totalGains, dec) }}</td>
+        </tr>
+        <tr><td>RETENUES</td><td class="num">{{ _self.f(totalRetenues, dec) }}</td></tr>
+        <tr><td class="net">NET À PAYER</td><td class="num net">{{ _self.f(bu.netAPayer, dec) }} {{ societe.deviseEffective }}</td></tr>
+        <tr><td colspan="3"><i>Règlement :</i> {{ s.modePaiement.libelle }}{% if s.banque %} — {{ s.banque }}{% endif %}{% if s.numeroCompte %} — {{ s.numeroCompte }}{% endif %}</td></tr>
+    </table>
+
+    <div class="mention">
+        {% if logoCipaie %}<img src="{{ logoCipaie }}">{% endif %}
+        Bulletin {{ r.soldeToutCompte ? 'de solde de tout compte ' }}édité via la plateforme Côte d'Ivoire Paie —
+        {% if periode.cloturee %}paie validée le {{ periode.clotureeLe|date('d/m/Y') }}
+        {%- elseif r.soldeArrete %}solde de tout compte arrêté le {{ r.soldeArrete.soldeArreteLe|date('d/m/Y') }}
+        {%- else %}document provisoire, paie non validée{% endif %}.
+        Conservez ce bulletin sans limitation de durée.
+    </div>
+</div>
+{% endfor %}
+</body>
+</html>

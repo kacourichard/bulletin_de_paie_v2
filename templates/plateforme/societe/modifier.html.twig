@@ -1,0 +1,19 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Modifier {{ societe.raisonSociale }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_societes') }}">Sociétés</a></li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_societe_voir', {id: societe.id}) }}">{{ societe.raisonSociale }}</a></li><li class="breadcrumb-item active">Modifier</li>{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        {{ form_start(form) }}
+            {{ form_errors(form) }}
+            {% include 'societe/_form.html.twig' %}
+            <div class="d-flex gap-2 mt-4">
+                <button class="btn btn-primary">Enregistrer</button>
+                <a href="{{ path('app_plateforme_societe_voir', {id: societe.id}) }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

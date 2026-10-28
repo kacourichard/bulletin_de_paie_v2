@@ -1,0 +1,72 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Rôles & permissions{% endblock %}
+{% block page_subtitle %}Ce que chaque rôle peut faire dans la société. Cliquez sur un rôle pour ajuster ses permissions.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Rôles & permissions</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_role_nouveau') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nouveau rôle</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    {% for r in roles %}
+        <div class="col-md-6 col-xl-4">
+            <div class="card h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge text-bg-{{ r.couleur }} badge-soft fs-6">{{ r.libelle }}</span>
+                        {% if r.systeme %}<span class="small text-body-secondary" title="Rôle par défaut"><i class="bi bi-lock"></i> Par défaut</span>{% endif %}
+                    </div>
+                    <p class="small text-body-secondary flex-grow-1 mb-3">{{ r.description ?: 'Aucune description.' }}</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="small">
+                            <i class="bi bi-people me-1"></i>{{ r.membres|length }} utilisateur(s)
+                            <span class="text-body-secondary mx-1">·</span>
+                            <i class="bi bi-key me-1"></i>{{ r.permissions|length }} permission(s)
+                        </div>
+                        <div class="d-flex gap-1">
+                            <a href="{{ path('app_role_modifier', {id: r.id}) }}" class="btn btn-sm btn-light-subtle">Modifier</a>
+                            {% if not r.systeme and r.membres is empty %}
+                                <form method="post" action="{{ path('app_role_supprimer', {id: r.id}) }}" data-confirm="Supprimer le rôle « {{ r.libelle }} » ?">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('role-' ~ r.id) }}">
+                                    <button class="btn btn-sm btn-light-subtle btn-icon text-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <div class="card-header"><h2 class="card-title">Matrice des permissions</h2></div>
+    <div class="table-responsive">
+        <table class="table matrice">
+            <thead>
+                <tr>
+                    <th>Action</th>
+                    {% for r in roles %}<th>{{ r.libelle }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% set modules = modules_permissions() %}
+                {% set module_courant = null %}
+                {% for p in permissions %}
+                    {% if p.module != module_courant %}
+                        {% set module_courant = p.module %}
+                        <tr class="module-row"><td colspan="{{ roles|length + 1 }}"><i class="bi bi-{{ modules[p.module].icone|default('dot') }} me-1"></i>{{ modules[p.module].libelle|default(p.module) }}</td></tr>
+                    {% endif %}
+                    <tr>
+                        <td>{{ p.libelle }}<div class="perm-code">{{ p.code }}</div></td>
+                        {% for r in roles %}
+                            <td>{% if r.aPermission(p.code) %}<i class="bi bi-check-circle-fill ok"></i>{% else %}<i class="bi bi-dash-lg ko"></i>{% endif %}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

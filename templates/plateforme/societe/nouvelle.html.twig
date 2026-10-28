@@ -1,0 +1,20 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Nouvelle société{% endblock %}
+{% block page_subtitle %}La société reçoit automatiquement les rôles Responsable RH, Comptable, Trésorier et Consultant. Elle est administrée par les administrateurs de sa succursale.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_societes') }}">Sociétés</a></li><li class="breadcrumb-item active">Nouvelle</li>{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        {{ form_start(form) }}
+            {{ form_errors(form) }}
+            {% include 'societe/_form.html.twig' %}
+            <div class="d-flex gap-2 mt-4">
+                <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Créer la société</button>
+                <a href="{{ path('app_plateforme_societes') }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

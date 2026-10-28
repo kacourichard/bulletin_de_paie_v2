@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% block title %}État de paiement — {{ periode.libelle }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+
+{% block body %}
+<div class="rapport-barre no-print">
+    <div class="d-flex align-items-center gap-2">
+        <strong>État de paiement des salaires — {{ periode.libelle }}</strong>
+        <span class="badge text-bg-{{ etat.totaux.nbAPayer ? 'warning' : 'success' }}">{{ etat.totaux.nbPayes }} payé(s) · {{ etat.totaux.nbAPayer }} à payer</span>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimer / PDF</button>
+        <button type="button" class="btn btn-light btn-sm border" onclick="window.close()">Fermer</button>
+    </div>
+</div>
+
+<section class="rapport-page">
+    {% include 'bulletin/_entete.html.twig' with {societe: periode.societe, periode: periode.libelle, titre: 'ÉTAT DE PAIEMENT'} %}
+
+    <table class="rapport-lignes">
+        <thead><tr><th>Matricule</th><th>Nom et prénoms</th><th>Moyen</th><th>Banque / compte</th><th class="num">Net à payer</th><th>Payé le</th><th style="width: 22%;">Émargement</th></tr></thead>
+        <tbody>
+        {% for l in etat.lignes %}
+            {% set s = l.affectation.salarie %}{% set p = l.paiement %}
+            <tr style="height: 2.2em;">
+                <td>{{ l.affectation.matricule }}</td>
+                <td>{{ s.nomComplet }}</td>
+                <td>{{ l.mode.libelle }}</td>
+                <td>{{ p ? (p.banque ~ ' ' ~ p.compte)|trim : (l.mode.value == 'VIREMENT' ? (s.banque ~ ' ' ~ s.numeroCompte)|trim : (l.mode.value == 'MOBILE_MONEY' ? s.telephone : '')) }}</td>
+                <td class="num">{{ m.montant(l.net, devise) }}</td>
+                <td>{{ p ? p.payeLe|date('d/m/Y') ~ (p.reference ? ' — ' ~ p.reference) : '' }}</td>
+                <td></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr><td></td><td>Total ({{ etat.lignes|length }} salarié(s))</td><td></td><td></td><td class="num">{{ m.montant(etat.totaux.net, devise) }}</td><td colspan="2">Payé : {{ m.montant(etat.totaux.paye, devise) }} · reste : {{ m.montant(etat.totaux.reste, devise) }}</td></tr>
+        </tfoot>
+    </table>
+
+    <div class="d-flex justify-content-between mt-5 px-4">
+        <div>Visa du trésorier</div>
+        <div>Visa de la direction</div>
+    </div>
+
+    <p class="rapport-note">Édité le {{ 'now'|date('d/m/Y à H:i') }}.</p>
+</section>
+{% endblock %}

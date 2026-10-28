@@ -1,0 +1,147 @@
+{% extends 'layout/app.html.twig' %}
+
+{% set libelle_mois = import.mois|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize %}
+{% set peut_preparer = is_granted('paie.preparer') %}
+{% macro h(v) %}{{ v + 0 == 0 ? '' : (v + 0)|number_format((v + 0) == (v + 0)|round ? 0 : 2, ',', ' ') }}{% endmacro %}
+{% import _self as f %}
+
+{% block title %}Heures supplémentaires — {{ import.nomFichier }}{% endblock %}
+{% block page_title %}Heures supplémentaires — {{ libelle_mois }}{% endblock %}
+{% block page_subtitle %}{{ import.nomFichier }} · pointage du {{ import.du|date('d/m/Y') }} au {{ import.au|date('d/m/Y') }} · {{ import.nombreLignes }} ligne(s) · régime par défaut {{ import.regimeParDefaut.libelle }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_heures_sup', {mois: import.mois|date('Y-m')}) }}">Heures supplémentaires</a></li><li class="breadcrumb-item active">{{ import.nomFichier }}</li>{% endblock %}
+
+{% block page_actions %}
+    <a href="{{ path('app_heures_sup_voir', {id: import.id, format: 'xlsx'}) }}" class="btn btn-light-subtle"><i class="bi bi-file-earmark-excel me-1 text-success"></i>Excel</a>
+    {% if peut_preparer %}
+        <form method="post" action="{{ path('app_heures_sup_supprimer', {id: import.id}) }}" data-confirm="Supprimer cet import ? Les heures déjà reportées restent dans la paie.">
+            <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+            <button class="btn btn-light-subtle text-danger"><i class="bi bi-trash me-1"></i>Supprimer</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if import.du|date('Y-m') != import.mois|date('Y-m') or import.au|date('Y-m') != import.mois|date('Y-m') %}
+    <div class="alert alert-warning d-flex gap-2"><i class="bi bi-exclamation-triangle"></i><div>Le pointage déborde du mois de paie ({{ libelle_mois|lower }}) : le quota mensuel est appliqué sur l'ensemble de la période pointée, comme dans heures-sup.</div></div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+    <div class="col-md-2 col-6"><div class="card h-100"><div class="card-body"><div class="stat-label">Salariés</div><div class="stat-value">{{ lignes|length }}</div>{% if totaux.nonRapproches %}<div class="small text-warning-emphasis">{{ totaux.nonRapproches }} non rapproché(s)</div>{% endif %}</div></div></div>
+    <div class="col-md-2 col-6"><div class="card h-100"><div class="card-body"><div class="stat-label">Heures travaillées</div><div class="stat-value">{{ f.h(totaux.heures) ?: 0 }}</div></div></div></div>
+    <div class="col-md-4"><div class="card h-100 border-primary-subtle"><div class="card-body"><div class="stat-label">Heures supplémentaires</div>
+        <div class="stat-value text-primary">{{ f.h(totaux.hs15 + totaux.hs50 + totaux.hs75 + totaux.hs100) ?: 0 }} h</div>
+        <div class="small text-body-secondary">15 % : {{ f.h(totaux.hs15) ?: 0 }} · 50 % : {{ f.h(totaux.hs50) ?: 0 }} · 75 % : {{ f.h(totaux.hs75) ?: 0 }} · 100 % : {{ f.h(totaux.hs100) ?: 0 }}</div></div></div></div>
+    <div class="col-md-2 col-6"><div class="card h-100"><div class="card-body"><div class="stat-label">Jours de panier</div><div class="stat-value">{{ totaux.panier }}</div></div></div></div>
+    <div class="col-md-2 col-6"><div class="card h-100"><div class="card-body"><div class="stat-label">Fériés travaillés</div><div class="stat-value">{{ totaux.feries }}</div><div class="small text-body-secondary">chômés payés, ≥ 11 h</div></div></div></div>
+</div>
+
+{% if peut_preparer %}
+    <div class="card mb-3">
+        <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+            <div class="flex-grow-1 small">
+                <strong>Report dans la paie — {{ libelle_mois }}</strong> :
+                heures à 15 / 50 / 75 / 100 % sur les rubriques {{ rubriques|filter((v, k) => k != 'panier')|join(', ') }} (au taux horaire de chaque salarié),
+                jours de panier sur {{ rubriques.panier }} × montant par jour. Un nouveau report remplace le précédent ; les heures saisies à la main dans la paie ne sont pas touchées.
+                {% if import.reporteLe %}<div class="text-success mt-1"><i class="bi bi-check2-circle me-1"></i>Reporté le {{ import.reporteLe|date('d/m/Y à H:i') }}{% if import.reportePar %} par {{ import.reportePar.nomComplet }}{% endif %}{% if import.montantPanier %} · panier {{ import.montantPanier|format_currency(import.societe.deviseEffective, {}, 'fr') }} / jour{% endif %}.</div>{% endif %}
+            </div>
+            {% if not periode %}
+                <div class="text-warning-emphasis small"><i class="bi bi-exclamation-triangle me-1"></i>La paie de {{ libelle_mois|lower }} n'est pas ouverte. <a href="{{ path('app_paie', {mois: import.mois|date('Y-m')}) }}">Ouvrir la paie</a></div>
+            {% elseif periode.cloturee %}
+                <div class="text-body-secondary small"><i class="bi bi-lock me-1"></i>Paie validée : report impossible.</div>
+            {% else %}
+                <form method="post" action="{{ path('app_heures_sup_reporter', {id: import.id}) }}" class="d-flex gap-2 align-items-end" data-confirm="Reporter les heures supplémentaires dans la paie de {{ libelle_mois|lower }} ?">
+                    <div>
+                        <label class="form-label small mb-0" for="hs-panier">Prime de panier / jour</label>
+                        <input id="hs-panier" name="panier" class="form-control form-control-sm text-end" style="width: 140px;" inputmode="decimal" value="{{ import.montantPanier ? import.montantPanier + 0 }}" placeholder="0 = sans panier">
+                    </div>
+                    <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+                    <button class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1"></i>Reporter dans la paie</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Détail par salarié</h2>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="ouvrir"><i class="bi bi-arrows-expand me-1"></i>Tout déplier</button>
+            <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="fermer"><i class="bi bi-arrows-collapse me-1"></i>Tout replier</button>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table paie-table align-middle mb-0" data-controller="datatable">
+            <thead><tr>
+                <th style="width: 34px;"></th><th>Salarié</th><th>Régime</th><th class="text-end">Jours</th><th class="text-end">Heures</th>
+                <th class="text-end">15 %</th><th class="text-end">50 %</th><th class="text-end">75 %</th><th class="text-end">100 %</th><th class="text-end">Total HS</th>
+                <th class="text-end">Panier</th><th class="text-end">Fériés</th>
+            </tr></thead>
+            <tbody>
+            {% for l in lignes %}
+                {% set r = l.resultat %}
+                {% set a = l.affectation %}
+                <tr class="paie-salarie">
+                    <td><button type="button" class="btn btn-sm btn-link p-0 text-body-secondary" data-detail-toggle="hs-{{ loop.index }}" aria-expanded="false" aria-label="Détail par jour"><i class="bi bi-chevron-down"></i></button></td>
+                    <td>
+                        {% if a %}
+                            <a href="{{ path('app_salarie_voir', {id: a.id}) }}" class="fw-medium text-reset text-decoration-none">{{ a.salarie.nomComplet }}</a>
+                            <div class="small text-body-secondary font-monospace">{{ a.matricule }}{% if l.identifiant != a.matricule %} · pointage {{ l.identifiant }}{% endif %}</div>
+                        {% else %}
+                            <div class="fw-medium">{{ l.nom ?: l.identifiant }} <span class="badge text-bg-warning badge-soft">Non rapproché</span></div>
+                            <div class="small text-body-secondary font-monospace">identifiant {{ l.identifiant }}</div>
+                            {% if peut_preparer %}
+                                <form method="post" action="{{ path('app_heures_sup_lier', {id: import.id}) }}" class="d-flex gap-1 mt-1">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+                                    <input type="hidden" name="identifiant" value="{{ l.identifiant }}">
+                                    <select name="affectation" class="form-select form-select-sm" style="min-width: 230px;" required data-controller="liste-recherche" aria-label="Salarié correspondant">
+                                        <option value="">— Salarié correspondant —</option>
+                                        {% for s in salaries %}<option value="{{ s.id }}">{{ s.salarie.nomComplet }} ({{ s.matricule }})</option>{% endfor %}
+                                    </select>
+                                    <button class="btn btn-sm btn-light-subtle">Rattacher</button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                    <td class="small">{{ l.regime.libelle }}{% if not l.regimeDetecte %}<div class="text-body-secondary">par défaut</div>{% endif %}</td>
+                    <td class="text-end">{{ r.jours|length }}</td>
+                    <td class="text-end" data-order="{{ r.heuresTravaillees }}">{{ f.h(r.heuresTravaillees) }}</td>
+                    <td class="text-end" data-order="{{ r.hs15 }}">{{ f.h(r.hs15) }}</td>
+                    <td class="text-end" data-order="{{ r.hs50 }}">{{ f.h(r.hs50) }}</td>
+                    <td class="text-end" data-order="{{ r.hs75 }}">{{ f.h(r.hs75) }}</td>
+                    <td class="text-end" data-order="{{ r.hs100 }}">{{ f.h(r.hs100) }}</td>
+                    <td class="text-end fw-semibold" data-order="{{ r.totalHeuresSup }}">{{ f.h(r.totalHeuresSup) }}</td>
+                    <td class="text-end">{{ r.joursPanier ?: '' }}</td>
+                    <td class="text-end">{{ r.joursFeriesTravailles ?: '' }}</td>
+                </tr>
+                <tr class="paie-detail" id="hs-{{ loop.index }}" hidden>
+                    <td></td>
+                    <td colspan="11" class="pt-0">
+                        <table class="table table-sm paie-lignes mb-2">
+                            <thead><tr><th>Date</th><th>Jour</th><th class="text-end">Heures</th><th class="text-end">Cumul quota ({{ l.regime.quotaMensuel }} h)</th><th class="text-end">15 %</th><th class="text-end">50 %</th><th class="text-end">75 %</th><th class="text-end">100 %</th></tr></thead>
+                            <tbody>
+                            {% for j in r.jours %}
+                                {% set cle = j.date|date('Y-m-d') %}
+                                <tr class="{{ j.hs15 + j.hs50 + j.hs75 + j.hs100 > 0 ? 'paie-ligne-variable' }}">
+                                    <td>{{ j.date|format_date(pattern: 'EEE d MMM', locale: 'fr') }}</td>
+                                    <td class="small">
+                                        {% if j.nature.value != 'NORMAL' %}<span class="badge text-bg-{{ j.nature.value == 'FERIE_CHOME_PAYE' ? 'danger' : 'warning' }} badge-soft">{{ j.nature.libelle }}</span> <span class="text-body-secondary">{{ libellesFeries[cle] ?? '' }}</span>{% endif %}
+                                        {% if j.dimanche %}<span class="badge text-bg-secondary badge-soft">Dimanche</span>{% endif %}
+                                        {% if j.nuit and l.regime.gereNuit %}<span class="badge text-bg-dark badge-soft">Nuit</span>{% endif %}
+                                        {% if j.panier %}<span class="badge text-bg-info badge-soft">Panier</span>{% endif %}
+                                    </td>
+                                    <td class="text-end">{{ f.h(j.heures) }}</td>
+                                    <td class="text-end text-body-secondary">{{ j.cumulQuota is null ? 'hors quota' : f.h(j.cumulQuota) }}</td>
+                                    <td class="text-end">{{ f.h(j.hs15) }}</td><td class="text-end">{{ f.h(j.hs50) }}</td><td class="text-end">{{ f.h(j.hs75) }}</td><td class="text-end">{{ f.h(j.hs100) }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

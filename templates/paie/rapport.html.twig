@@ -1,0 +1,94 @@
+{% extends 'base.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% block title %}{{ affectations|length == 1 ? 'Rapport de paie — ' ~ affectations[0].salarie.nomComplet : 'Rapports de paie' }} — {{ periode.libelle }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+
+{% block body %}
+<div class="rapport-barre no-print">
+    <div class="d-flex align-items-center gap-2">
+        <strong>{{ affectations|length == 1 ? 'Rapport individuel' : affectations|length ~ ' rapports' }} — {{ periode.libelle }}</strong>
+        {% if periode.cloturee %}<span class="badge text-bg-success">Paie validée</span>{% else %}<span class="badge text-bg-warning">Paie en préparation</span>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimer / PDF</button>
+        <button type="button" class="btn btn-light btn-sm border" onclick="window.close()">Fermer</button>
+    </div>
+</div>
+
+{% for affectation in affectations %}
+    {% set r = recaps[affectation.id] %}
+    {% set c = r.calcul %}
+    {% set s = affectation.salarie %}
+    <section class="rapport-page">
+        {% include 'bulletin/_entete.html.twig' with {societe: periode.societe, periode: periode.libelle} %}
+
+        <div class="rapport-filigrane">{{ periode.cloturee ? 'RAPPORT DE PAIE — PAIE VALIDÉE' : 'RAPPORT DE CONTRÔLE — DOCUMENT PROVISOIRE' }}</div>
+
+        <div class="rapport-identite">
+            <dl>
+                <dt>Matricule</dt><dd>{{ affectation.matricule }}</dd>
+                <dt>Nom et prénoms</dt><dd><strong>{{ s.nomComplet }}</strong></dd>
+                <dt>Fonction</dt><dd>{{ affectation.poste ?: '—' }}</dd>
+                <dt>Catégorie / échelon</dt><dd>{{ affectation.categorie ?: '—' }}{% if affectation.echelon %} / {{ affectation.echelon }}{% endif %}</dd>
+                <dt>Date d'embauche</dt><dd>{{ affectation.dateEntree|date('d/m/Y') }}</dd>
+            </dl>
+            <dl>
+                <dt>Nationalité</dt><dd>{{ s.nationaliteNom ?: '—' }}</dd>
+                <dt>Situation</dt><dd>{{ s.situationFamiliale ? s.situationFamiliale.libelle : '—' }}, {{ s.nombreEnfants }} enfant(s)</dd>
+                <dt>N° {{ periode.societe.pays.organismeSocial ?: 'sécurité sociale' }}</dt><dd>{{ s.numeroSecuriteSociale ?: '—' }}</dd>
+                <dt>Jours travaillés</dt><dd>{{ r.jours + 0 }} / {{ r.joursBase }}</dd>
+                <dt>Ancienneté / parts</dt><dd>{{ c.anciennete.annees }} an(s) · {{ c.parts is not null ? (c.parts + 0) ~ ' part(s)' : '—' }}</dd>
+            </dl>
+        </div>
+
+        <table class="rapport-lignes">
+            <thead><tr><th>Code</th><th>Libellé</th><th class="num">Base</th><th class="num">Taux</th><th class="num">Gains</th><th class="num">Retenues</th></tr></thead>
+            <tbody>
+            {% for l in r.lignes %}
+                <tr>
+                    <td>{{ l.code ?: '' }}</td>
+                    <td>
+                        {{ l.libelle }}
+                        {% if l.origine == 'ajuste' %}<em>(ajusté ce mois{% if l.element and l.element.commentaire %} : {{ l.element.commentaire }}{% endif %})</em>
+                        {% elseif l.origine == 'variable' %}<em>(variable{% if l.element and l.element.commentaire %} : {{ l.element.commentaire }}{% endif %})</em>{% endif %}
+                    </td>
+                    <td class="num">{{ l.base is not null ? (l.base + 0)|number_format(l.base + 0 == (l.base + 0)|round ? 0 : 2, ',', ' ') : '' }}</td>
+                    <td class="num">{{ l.taux is not null ? (l.taux + 0)|number_format(l.taux + 0 == (l.taux + 0)|round ? 0 : 2, ',', ' ') : '' }}</td>
+                    <td class="num">{% if l.gain %}{{ m.montant(l.montant, devise) }}{% endif %}</td>
+                    <td class="num">{% if not l.gain %}{{ m.montant(l.montant, devise) }}{% endif %}</td>
+                </tr>
+            {% endfor %}
+            {% set bu = r.bulletin %}
+            {% for l in (bu.impot ? [bu.impot] : [])|merge(bu.salariales) %}
+                <tr>
+                    <td>{{ l.code ?: '' }}</td>
+                    <td>{{ l.libelle }}</td>
+                    <td class="num">{{ (l.base + 0)|number_format(0, ',', ' ') }}</td>
+                    <td class="num">{{ l.taux is defined ? (l.taux + 0)|number_format(l.taux + 0 == (l.taux + 0)|round ? 0 : 2, ',', ' ') ~ ' %' : '' }}</td>
+                    <td class="num"></td>
+                    <td class="num">{{ m.montant(l.montant, devise) }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr><td></td><td>Totaux</td><td></td><td></td><td class="num">{{ m.montant(r.totalGains, devise) }}</td><td class="num">{{ m.montant(r.retenuesTotales, devise) }}</td></tr>
+            </tfoot>
+        </table>
+
+        <div class="rapport-synthese">
+            <div><span>Salaire brut</span><strong>{{ m.montant(c.brut, devise) }}</strong></div>
+            <div><span>Brut imposable</span><strong>{{ m.montant(c.brutImposable, devise) }}</strong></div>
+            {% if c.exoneration > 0 %}<div><span>Exonération</span><strong>{{ m.montant(c.exoneration, devise) }}</strong></div>{% endif %}
+            <div><span>Salaire net</span><strong>{{ m.montant(r.bulletin.salaireNet, devise) }}</strong></div>
+            <div><span>Charges patronales</span><strong>{{ m.montant(r.chargesPatronales, devise) }}</strong></div>
+            <div class="net"><span>Net à payer</span><strong>{{ m.montant(r.net, devise) }}</strong></div>
+        </div>
+
+        <p class="rapport-note">
+            {% if not periode.cloturee %}Ce rapport sert au contrôle avant la validation de la paie et ne vaut pas bulletin de paie.{% endif %}
+            Édité le {{ 'now'|date('d/m/Y à H:i') }}.
+        </p>
+    </section>
+{% endfor %}
+{% endblock %}

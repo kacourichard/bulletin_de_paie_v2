@@ -1,0 +1,16 @@
+{#
+    Barre d'outils des états imprimables. Variables : titre, provisoire, route, parametres (paramètres de l'URL).
+#}
+<div class="rapport-barre no-print">
+    <div class="d-flex align-items-center gap-2">
+        <strong>{{ titre }}</strong>
+        {% if provisoire %}<span class="badge text-bg-warning">Contient des mois non validés</span>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimer / PDF</button>
+        {% if is_granted('etat.exporter') %}
+            <a href="{{ path(route, parametres|merge({format: 'xlsx'})) }}" class="btn btn-light btn-sm border"><i class="bi bi-file-earmark-excel me-1 text-success"></i>Excel</a>
+        {% endif %}
+        <button type="button" class="btn btn-light btn-sm border" onclick="window.close()">Fermer</button>
+    </div>
+</div>

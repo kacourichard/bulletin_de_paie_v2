@@ -1,0 +1,54 @@
+{% set membre = membre_courant() %}
+<header class="app-topbar">
+    <button class="btn btn-light-subtle btn-icon d-lg-none" type="button" data-sidebar-toggle aria-label="Ouvrir le menu">
+        <i class="bi bi-list"></i>
+    </button>
+
+    <nav class="topbar-breadcrumb d-none d-md-block" aria-label="Fil d'Ariane">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ path('app_dashboard') }}"><i class="bi bi-house-door"></i></a></li>
+            {{ breadcrumb_html|default('')|raw }}
+        </ol>
+    </nav>
+
+    <div class="ms-auto d-flex align-items-center gap-2">
+        <button class="btn btn-light-subtle btn-icon" type="button" data-theme-toggle data-bs-toggle="tooltip" data-bs-placement="bottom" title="Thème clair / sombre">
+            <i class="bi bi-circle-half"></i>
+        </button>
+
+        <div class="dropdown">
+            <button class="topbar-user" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="avatar">{{ app.user.initiales }}</span>
+                <span class="text-start d-none d-sm-block">
+                    <span class="nom d-block">{{ app.user.nomComplet }}</span>
+                    <small>
+                        {% set societe_c = societe_courante() %}
+                        {% if is_granted('ROLE_SUPER_ADMIN') %}Super-administrateur
+                        {% elseif societe_c and app.user.administre(societe_c) %}Administrateur · {{ societe_c.succursale.nom }}
+                        {% elseif membre %}{{ membre.role.libelle }}
+                        {% elseif succursales_administrees() is not empty %}Administrateur de succursale{% endif %}
+                    </small>
+                </span>
+                <i class="bi bi-chevron-down small text-body-secondary d-none d-sm-inline"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow" style="min-width: 240px;">
+                <li class="px-3 py-2">
+                    <div class="fw-semibold">{{ app.user.nomComplet }}</div>
+                    <div class="small text-body-secondary text-truncate">{{ app.user.email }}</div>
+                    {% if is_granted('ROLE_SUPER_ADMIN') %}<span class="badge text-bg-dark badge-soft mt-1">Super-admin</span>{% endif %}
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{{ path('app_compte') }}"><i class="bi bi-person me-2"></i>Mon profil</a></li>
+                <li><a class="dropdown-item" href="{{ path('app_compte_mot_de_passe') }}"><i class="bi bi-key me-2"></i>Mot de passe</a></li>
+                {% if succursales_administrees() is not empty %}
+                    <li><a class="dropdown-item" href="{{ path('app_succursales') }}"><i class="bi bi-diagram-3 me-2"></i>Ma succursale</a></li>
+                {% endif %}
+                {% if societes_disponibles()|length > 1 %}
+                    <li><a class="dropdown-item" href="{{ path('app_societe_choisir') }}"><i class="bi bi-arrow-left-right me-2"></i>Changer de société</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="{{ path('app_logout') }}"><i class="bi bi-box-arrow-right me-2"></i>Se déconnecter</a></li>
+            </ul>
+        </div>
+    </div>
+</header>

@@ -1,0 +1,38 @@
+{# Saisie d'avantages dans une collection de formulaire (embauche, changement de poste). #}
+
+{% macro ligne(av) %}
+    <div class="row g-2 align-items-start py-2 border-bottom" data-collection-item>
+        <div class="col-md-5">{{ form_widget(av.rubrique, {attr: {'data-controller': 'liste-recherche'}}) }}{{ form_errors(av.rubrique) }}</div>
+        <div class="col-md-3">{{ form_widget(av.libelleSpecifique, {attr: {placeholder: 'Libellé (facultatif)'}}) }}</div>
+        <div class="col-md-3">{{ form_widget(av.montant) }}{{ form_errors(av.montant) }}</div>
+        <div class="col-md-1 d-flex align-items-center gap-2 justify-content-end">
+            <label class="small d-flex gap-1 text-nowrap" title="Avantage en nature (logement, véhicule…)">
+                <input type="checkbox" class="form-check-input" name="{{ av.enNature.vars.full_name }}" value="1"{{ av.enNature.vars.checked ? ' checked' }}> Nat.
+            </label>
+            {% do av.enNature.setRendered %}
+            <button type="button" class="btn btn-sm btn-light-subtle btn-icon text-danger" data-collection-remove title="Retirer"><i class="bi bi-x-lg"></i></button>
+        </div>
+    </div>
+{% endmacro %}
+
+{# Bloc complet : liste + bouton d'ajout. collection = champ CollectionType, id = identifiant HTML unique. #}
+{% macro bloc(collection, id, rubriques_disponibles) %}
+    {% if not rubriques_disponibles %}
+        <div class="alert alert-warning small mb-0"><i class="bi bi-exclamation-triangle me-1"></i>Aucune rubrique d'avantage n'est définie pour le pays de cette société. Demandez à la plateforme de compléter le référentiel des rubriques.</div>
+        {% do collection.setRendered %}
+    {% else %}
+        <div class="row g-2 small text-body-secondary fw-medium d-none d-md-flex">
+            <div class="col-md-5">Rubrique</div><div class="col-md-3">Libellé sur le bulletin</div><div class="col-md-3">Montant mensuel</div>
+        </div>
+        <div id="{{ id }}" data-collection data-index="{{ collection|length }}"
+             data-prototype="{{ _self.ligne(collection.vars.prototype)|e('html_attr') }}">
+            {% for av in collection %}
+                {{ _self.ligne(av) }}
+            {% else %}
+                <div class="text-body-secondary small py-2" data-collection-vide>Aucun avantage.</div>
+            {% endfor %}
+        </div>
+        {% do collection.setRendered %}
+        <button type="button" class="btn btn-sm btn-light-subtle mt-2" data-collection-add="#{{ id }}"><i class="bi bi-plus-lg me-1"></i>Ajouter un avantage</button>
+    {% endif %}
+{% endmacro %}

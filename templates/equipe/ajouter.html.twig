@@ -1,0 +1,51 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Ajouter un utilisateur{% endblock %}
+{% block page_subtitle %}Donnez accès à la société à un collaborateur, avec le rôle adapté.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_equipe') }}">Utilisateurs</a></li><li class="breadcrumb-item active">Ajouter</li>{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_errors(form) }}
+                    <div class="section-form">
+                        <div class="section-form-title">Compte</div>
+                        {{ form_row(form.email) }}
+                        <div class="row">
+                            <div class="col-md-6">{{ form_row(form.prenoms) }}</div>
+                            <div class="col-md-6">{{ form_row(form.nom) }}</div>
+                            <div class="col-md-6">{{ form_row(form.telephone) }}</div>
+                        </div>
+                    </div>
+                    <hr class="my-4">
+                    <div class="section-form">
+                        <div class="section-form-title">Rôle</div>
+                        <div class="section-form-desc">Le rôle détermine ce que la personne peut faire dans cette société.</div>
+                        {{ form_row(form.role) }}
+                    </div>
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Ajouter</button>
+                        <a href="{{ path('app_equipe') }}" class="btn btn-light-subtle">Annuler</a>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Rôles disponibles</h2></div>
+            <ul class="list-group list-group-flush">
+                {% for r in societe_courante().roles %}
+                    <li class="list-group-item py-3">
+                        <span class="badge text-bg-{{ r.couleur }} badge-soft mb-1">{{ r.libelle }}</span>
+                        <div class="small text-body-secondary">{{ r.description ?: (r.permissions|length ~ ' permission(s)') }}</div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

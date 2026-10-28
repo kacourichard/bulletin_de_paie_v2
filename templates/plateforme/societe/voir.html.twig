@@ -1,0 +1,62 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ societe.raisonSociale }}{% endblock %}
+{% block page_title %}<span class="d-inline-flex align-items-center gap-3">{% include 'societe/_logo.html.twig' with {taille: 'lg'} %}{{ societe.raisonSociale }}</span>{% endblock %}
+{% block page_subtitle %}
+    {{ societe.pays.drapeau }} {{ societe.pays.nom }} · {{ societe.deviseEffective }}
+    {% if societe.legislationEtrangere %}· paie {{ societe.paysPaie.drapeau }} {{ societe.paysPaie.nom }}{% endif %}
+    · {% if societe.active %}<span class="badge-statut text-success">Active</span>{% else %}<span class="badge-statut text-secondary">Inactive</span>{% endif %}
+{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_societes') }}">Sociétés</a></li><li class="breadcrumb-item active">{{ societe.raisonSociale }}</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_societe_modifier', {id: societe.id}) }}" class="btn btn-light-subtle"><i class="bi bi-pencil me-1"></i>Modifier</a>
+    {% if societe.active %}
+        <form method="post" action="{{ path('app_plateforme_societe_ouvrir', {id: societe.id}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('ouvrir-' ~ societe.id) }}">
+            <button class="btn btn-primary"><i class="bi bi-box-arrow-in-right me-1"></i>Ouvrir l'espace société</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Informations</h2></div>
+            <div class="card-body">
+                <dl class="info-list">
+                    <dt>Succursale</dt><dd><a href="{{ path('app_succursale_voir', {id: societe.succursale.id}) }}">{{ societe.succursale.nom }}</a></dd>
+                    <dt>Administrée par</dt><dd>{% for u in societe.succursale.administrateurs %}{{ u.nomComplet }}{{ not loop.last ? ', ' }}{% endfor %}</dd>
+                    <dt>Adresse</dt><dd>{{ societe.adresse ?: '—' }}{% if societe.ville %}, {{ societe.ville }}{% endif %}</dd>
+                    <dt>Téléphone</dt><dd>{{ societe.telephone ?: '—' }}</dd>
+                    <dt>E-mail</dt><dd>{{ societe.email ?: '—' }}</dd>
+                    <dt>N° employeur</dt><dd>{{ societe.numeroEmployeur ?: '—' }}</dd>
+                    <dt>Identifiant fiscal</dt><dd>{{ societe.numeroFiscal ?: '—' }}</dd>
+                    <dt>Créée sur la plateforme</dt><dd>{{ societe.createdAt|date('d/m/Y') }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Équipe ({{ societe.membres|length }})</h2></div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Utilisateur</th><th>Rôle</th><th>Statut</th></tr></thead>
+                    <tbody>
+                    {% for m in societe.membres %}
+                        <tr>
+                            <td><div class="fw-medium">{{ m.user.nomComplet }}</div><div class="small text-body-secondary">{{ m.user.email }}</div></td>
+                            <td><span class="badge text-bg-{{ m.role.couleur }} badge-soft">{{ m.role.libelle }}</span></td>
+                            <td>{% if m.actif and m.user.actif %}<span class="badge-statut text-success">Actif</span>{% else %}<span class="badge-statut text-secondary">Inactif</span>{% endif %}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="3"><div class="empty-state">Aucun utilisateur.</div></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

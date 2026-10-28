@@ -1,0 +1,24 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ secteur.id ? secteur.libelle : 'Nouveau secteur' }}{% endblock %}
+{% block page_subtitle %}{{ pays.drapeau }} {{ pays.nom }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_secteurs', {pays: pays.id}) }}">Secteurs {{ pays.nom }}</a></li><li class="breadcrumb-item active">{{ secteur.id ? 'Modifier' : 'Nouveau' }}</li>{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 700px;">
+    <div class="card-body">
+        {{ form_start(form) }}
+            {{ form_errors(form) }}
+            <div class="row">
+                <div class="col-md-8">{{ form_row(form.libelle) }}</div>
+                <div class="col-md-4">{{ form_row(form.tauxRisque) }}</div>
+            </div>
+            <div class="form-check form-switch mb-3">{{ form_widget(form.actif) }}{{ form_label(form.actif) }}</div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary">Enregistrer</button>
+                <a href="{{ path('app_plateforme_secteurs', {pays: pays.id}) }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

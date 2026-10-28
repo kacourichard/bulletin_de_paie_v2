@@ -1,0 +1,93 @@
+{% extends 'layout/app.html.twig' %}
+
+{% set membre = membre_courant() %}
+
+{% block title %}Tableau de bord{% endblock %}
+{% block page_title %}Bonjour {{ app.user.prenoms }} 👋{% endblock %}
+{% block page_subtitle %}
+    Vous êtes connecté(e) à <strong>{{ societe.raisonSociale }}</strong>
+    {% if membre %} en tant que <span class="badge text-bg-{{ membre.role.couleur }} badge-soft">{{ membre.role.libelle }}</span>{% endif %}
+{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Tableau de bord</li>{% endblock %}
+
+{% block content %}
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat-card">
+            <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-person-badge"></i></div>
+            <div><div class="stat-label">Salariés en poste</div><div class="stat-value">{{ nbSalaries }}</div>
+                {% if is_granted('salarie.voir') %}<a href="{{ path('app_salarie') }}" class="small">Voir le personnel</a>{% endif %}</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat-card">
+            <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-cash-stack"></i></div>
+            <div><div class="stat-label">Masse salariale fixe / mois</div>
+                <div class="stat-value">{% if is_granted('salarie.remuneration') %}{{ masseSalariale|format_currency(societe.deviseEffective, {}, 'fr') }}{% else %}<span class="text-body-secondary fs-6">Confidentiel</span>{% endif %}</div>
+                <div class="small text-body-secondary">Salaires + avantages en vigueur</div></div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat-card">
+            <div class="stat-icon bg-info-subtle text-info"><i class="bi bi-people"></i></div>
+            <div><div class="stat-label">Utilisateurs</div><div class="stat-value">{{ nbMembres }}</div>
+                {% if is_granted('utilisateur.voir') %}<a href="{{ path('app_equipe') }}" class="small">Gérer l'équipe</a>{% endif %}</div>
+        </div></div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="card h-100"><div class="card-body stat-card">
+            <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-shield-lock"></i></div>
+            <div><div class="stat-label">Rôles configurés</div><div class="stat-value">{{ nbRoles }}</div>
+                {% if is_granted('role.gerer') %}<a href="{{ path('app_role') }}" class="small">Voir les permissions</a>{% endif %}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title">Ma société</h2>
+                {% if is_granted('societe.voir') %}<a href="{{ path('app_ma_societe') }}" class="btn btn-sm btn-light-subtle">Détails</a>{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="d-flex align-items-center gap-3 mb-4">
+                    {% include 'societe/_logo.html.twig' with {taille: 'lg'} %}
+                    <div>
+                        <div class="fs-5 fw-semibold">{{ societe.raisonSociale }}</div>
+                        <div class="text-body-secondary">{{ societe.pays.drapeau }} {{ societe.pays.nom }}{% if societe.ville %} · {{ societe.ville }}{% endif %}</div>
+                    </div>
+                </div>
+                <dl class="info-list">
+                    <dt>Succursale</dt><dd>{{ societe.succursale.nom }}</dd>
+                    <dt>Devise de paie</dt><dd>{{ societe.deviseEffective }} — {{ societe.deviseEffective|currency_name('fr') }}</dd>
+                    <dt>Fuseau horaire</dt><dd>{{ societe.pays.fuseauHoraire }}</dd>
+                    <dt>N° employeur</dt><dd>{{ societe.numeroEmployeur ?: '—' }}{% if societe.pays.organismeSocial %} <span class="text-body-secondary small">({{ societe.pays.organismeSocial }})</span>{% endif %}</dd>
+                    <dt>Identifiant fiscal</dt><dd>{{ societe.numeroFiscal ?: '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title">Mes autorisations</h2></div>
+            <div class="card-body">
+                {% if membre %}
+                    <p class="small text-body-secondary">{{ membre.role.description }}</p>
+                    <ul class="list-unstyled mb-0">
+                        {% for p in membre.role.permissions %}
+                            <li class="d-flex gap-2 py-1 small"><i class="bi bi-check2 text-success"></i>{{ p.libelle }}</li>
+                        {% else %}
+                            <li class="text-body-secondary small">Aucune permission.</li>
+                        {% endfor %}
+                    </ul>
+                {% elseif app.user.administre(societe) %}
+                    <p class="mb-2 small"><i class="bi bi-shield-lock text-danger me-1"></i>Vous administrez la succursale <strong>{{ societe.succursale.nom }}</strong> : vous disposez de tous les droits sur cette société.</p>
+                    <a href="{{ path('app_succursale_voir', {id: societe.succursale.id}) }}" class="btn btn-sm btn-light-subtle">Voir la succursale</a>
+                {% else %}
+                    <p class="mb-0 small"><i class="bi bi-stars text-primary me-1"></i>En tant que super-administrateur, vous disposez de tous les droits sur cette société.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

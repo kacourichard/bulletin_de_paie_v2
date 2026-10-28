@@ -1,0 +1,217 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set salarie = affectation.salarie %}
+{% block title %}{{ salarie.nomComplet }} — paie — {{ periode.libelle }}{% endblock %}
+{% block page_title %}{{ salarie.nomComplet }}{% endblock %}
+{% block page_subtitle %}Paie — <strong>{{ periode.libelle }}</strong> · <span class="font-monospace">{{ affectation.matricule }}</span> · {{ affectation.poste }}{% endblock %}
+{% block breadcrumb %}
+    <li class="breadcrumb-item"><a href="{{ path('app_paie', {mois: periode.code}) }}">Paie — {{ periode.libelle }}</a></li>
+    <li class="breadcrumb-item active">{{ salarie.nomComplet }}</li>
+{% endblock %}
+{% block page_actions %}
+    {% if is_granted('salarie.voir') %}<a href="{{ path('app_salarie_voir', {id: affectation.id}) }}" class="btn btn-light-subtle"><i class="bi bi-person-vcard me-1"></i>Fiche du salarié</a>{% endif %}
+    <a href="{{ path('app_paie_rapport', {mois: periode.code, id: affectation.id}) }}" class="btn btn-light-subtle" target="_blank"><i class="bi bi-printer me-1"></i>Rapport individuel</a>
+    <a href="{{ path('app_paie', {mois: periode.code}) }}" class="btn btn-light-subtle"><i class="bi bi-arrow-left me-1"></i>Tous les salariés</a>
+{% endblock %}
+
+{% block content %}
+{% if periode.cloturee %}
+    <div class="alert alert-secondary d-flex gap-2"><i class="bi bi-lock"></i><div>Paie validée : consultation seule.</div></div>
+{% endif %}
+
+{% if recap.soldeToutCompte %}
+    {% set arrete = recap.soldeArrete %}
+    <div class="alert {{ arrete ? 'alert-success' : 'alert-warning' }} d-flex flex-wrap gap-3 align-items-center">
+        <i class="bi bi-box-arrow-right fs-4"></i>
+        <div class="flex-grow-1">
+            <div class="fw-semibold">Solde de tout compte — sortie le {{ affectation.dateSortie|date('d/m/Y') }}{% if affectation.motifSortie %} ({{ affectation.motifSortie.libelle }}){% endif %}</div>
+            {% if arrete %}
+                Arrêté le {{ arrete.soldeArreteLe|date('d/m/Y à H:i') }}{% if arrete.soldeArretePar %} par {{ arrete.soldeArretePar.nomComplet }}{% endif %} :
+                bulletin définitif, éléments verrouillés. Il sera repris avec les autres bulletins à la validation du mois.
+            {% else %}
+                Vérifiez les éléments de sortie (prorata, indemnités, retenues), puis arrêtez le solde :
+                le bulletin devient définitif sans attendre la validation du mois.
+            {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+            {% if arrete and is_granted('bulletin.imprimer') %}
+                <a href="{{ path('app_bulletin_voir', {mois: periode.code, id: affectation.id}) }}" target="_blank" class="btn btn-sm btn-light-subtle"><i class="bi bi-receipt me-1"></i>Bulletin</a>
+                <a href="{{ path('app_bulletin_pdf', {mois: periode.code, id: affectation.id}) }}" class="btn btn-sm btn-light-subtle"><i class="bi bi-file-earmark-pdf text-danger me-1"></i>PDF</a>
+            {% endif %}
+            {% if not periode.cloturee and is_granted('paie.valider') %}
+                {% if arrete %}
+                    <form method="post" action="{{ path('app_paie_solde_annuler', {mois: periode.code, id: affectation.id}) }}" data-confirm="Annuler l'arrêté du solde de {{ salarie.nomComplet }} ? Sa paie redeviendra modifiable.">
+                        <input type="hidden" name="_token" value="{{ csrf_token('solde-' ~ affectation.id) }}">
+                        <button class="btn btn-sm btn-light-subtle text-danger">Annuler l'arrêté</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{{ path('app_paie_solde_arreter', {mois: periode.code, id: affectation.id}) }}" data-confirm="Arrêter le solde de tout compte de {{ salarie.nomComplet }} ? Son bulletin sera définitif et ses éléments verrouillés.">
+                        <input type="hidden" name="_token" value="{{ csrf_token('solde-' ~ affectation.id) }}">
+                        <button class="btn btn-sm btn-primary"><i class="bi bi-check2-circle me-1"></i>Arrêter le solde de tout compte</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+
+<div class="row g-3">
+    <div class="col-xl-7">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Éléments de paie — {{ periode.libelle }}</h2></div>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Code</th><th>Libellé</th><th class="text-end">Base</th><th class="text-end">Taux</th><th class="text-end">Gain</th><th class="text-end">Retenue</th><th></th></tr></thead>
+                    <tbody>
+                    {% for l in recap.lignes %}
+                        <tr class="{{ l.origine == 'variable' ? 'table-primary' : '' }}">
+                            <td class="font-monospace small">{{ l.code ?: '—' }}</td>
+                            <td>
+                                {{ l.libelle }}
+                                {% if l.origine == 'fixe' %}<span class="badge text-bg-light border badge-soft">Fixe</span>
+                                {% elseif l.origine == 'calcule' %}<span class="badge text-bg-success badge-soft">Calculé</span>
+                                {% elseif l.origine == 'ajuste' %}<span class="badge text-bg-warning badge-soft">Ajusté ce mois</span>
+                                {% else %}<span class="badge text-bg-primary badge-soft">Variable</span>{% endif %}
+                                {% if l.montantHabituel is not null %}<div class="small text-body-secondary">Habituellement {{ m.montant(l.montantHabituel, devise) }}{% if l.element.commentaire %} — {{ l.element.commentaire }}{% endif %}</div>
+                                {% elseif l.element and l.element.commentaire %}<div class="small text-body-secondary">{{ l.element.commentaire }}</div>{% endif %}
+                            </td>
+                            <td class="text-end small">{{ l.base is not null ? l.base + 0 : '' }}</td>
+                            <td class="text-end small">{{ l.taux is not null ? l.taux + 0 : '' }}</td>
+                            <td class="text-end">{% if l.gain %}{{ m.montant(l.montant, devise) }}{% endif %}</td>
+                            <td class="text-end text-danger">{% if not l.gain %}{{ m.montant(l.montant, devise) }}{% endif %}</td>
+                            <td class="text-end">
+                                {% if modifiable and l.element %}
+                                    <form method="post" action="{{ path('app_paie_element_supprimer', {mois: periode.code, element: l.element.id}) }}" data-confirm="Supprimer cet élément variable ?">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('element-' ~ l.element.id) }}">
+                                        <button class="btn btn-sm btn-light-subtle btn-icon text-danger" title="{{ l.origine == 'ajuste' ? 'Revenir au montant habituel' : 'Supprimer' }}"><i class="bi bi-{{ l.origine == 'ajuste' ? 'arrow-counterclockwise' : 'trash' }}"></i></button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-body-secondary small">Aucun élément.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        {% set bu = recap.bulletin %}
+                        {% for l in (bu.impot ? [bu.impot] : [])|merge(bu.salariales) %}
+                            <tr class="table-light small">
+                                <td class="font-monospace">{{ l.code ?: '—' }}</td>
+                                <td>{{ l.libelle }} <span class="badge text-bg-secondary badge-soft">{{ loop.first and bu.impot ? 'Impôt' : 'Cotisation' }}</span></td>
+                                <td class="text-end">{{ l.base + 0 }}</td>
+                                <td class="text-end">{{ l.taux is defined ? (l.taux + 0) ~ ' %' : '' }}</td>
+                                <td></td>
+                                <td class="text-end text-danger">{{ m.montant(l.montant, devise) }}</td>
+                                <td></td>
+                            </tr>
+                        {% endfor %}
+                        {% if bu.arrondi != 0 %}
+                            <tr class="table-light small">
+                                <td class="font-monospace">—</td>
+                                <td>Arrondi du net</td>
+                                <td></td><td></td>
+                                <td class="text-end">{{ bu.arrondi < 0 ? m.montant(-bu.arrondi, devise) : '' }}</td>
+                                <td class="text-end text-danger">{{ bu.arrondi > 0 ? m.montant(bu.arrondi, devise) : '' }}</td>
+                                <td></td>
+                            </tr>
+                        {% endif %}
+                        <tr class="fw-semibold"><td colspan="4" class="text-end">Totaux</td><td class="text-end">{{ m.montant(recap.totalGains, devise) }}</td><td class="text-end text-danger">{{ m.montant(recap.retenuesTotales, devise) }}</td><td></td></tr>
+                        <tr class="fw-bold fs-6"><td colspan="4" class="text-end">Net à payer</td><td colspan="2" class="text-end text-primary">{{ m.montant(recap.net, devise) }}</td><td></td></tr>
+                        <tr class="small text-body-secondary"><td colspan="4" class="text-end">Charges patronales (à la charge de la société)</td><td colspan="2" class="text-end">{{ m.montant(recap.chargesPatronales, devise) }}</td><td></td></tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="card-body border-top small text-body-secondary">
+                Les éléments fixes (salaire, sursalaire, avantages) viennent de la fiche du salarié et ne changent pas d'un mois à l'autre.
+                La prime d'ancienneté est calculée selon les paramètres de paie du pays.
+            </div>
+        </div>
+
+        {% set c = recap.calcul %}
+        <div class="card mt-3">
+            <div class="card-header">
+                <h2 class="card-title"><i class="bi bi-calculator me-1 text-success"></i>Calcul du bulletin — 1re partie</h2>
+                {% if not recap.parametre %}<span class="badge text-bg-warning badge-soft">Pays non paramétré : valeurs par défaut</span>{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="row g-3 small">
+                    <div class="col-md-6">
+                        <dl class="info-list mb-0">
+                            <dt>Jours travaillés</dt><dd>{{ recap.jours + 0 }} / {{ recap.joursBase }}{% if recap.joursAuto %} <span class="text-body-secondary">(automatique)</span>{% endif %}</dd>
+                            <dt>Ancienneté</dt><dd>{{ c.anciennete.annees }} an(s) révolu(s)</dd>
+                            <dt>Prime d'ancienneté</dt><dd>{% if c.anciennete.applicable %}{{ c.anciennete.taux + 0 }} % × {{ m.montant(c.anciennete.base, devise) }} = <strong>{{ m.montant(c.anciennete.montant, devise) }}</strong>{% else %}<span class="text-body-secondary">Non due</span>{% endif %}</dd>
+                            <dt>Nombre de parts</dt><dd>{{ c.parts is not null ? c.parts + 0 : '—' }} <span class="text-body-secondary">({{ affectation.salarie.situationFamiliale ? affectation.salarie.situationFamiliale.libelle : 'situation non renseignée' }}, {{ affectation.salarie.nombreEnfants }} enfant(s))</span></dd>
+                        </dl>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm mb-0">
+                            {% for l in c.compositionBrut %}<tr><td class="text-body-secondary">{{ l.libelle }}</td><td class="text-end">{{ m.montant(l.montant, devise) }}</td></tr>{% endfor %}
+                            <tr class="table-primary fw-semibold"><td>Salaire brut</td><td class="text-end">{{ m.montant(c.brut, devise) }}</td></tr>
+                            {% if c.nonImposable > 0 %}<tr><td class="text-body-secondary">− Gains non imposables</td><td class="text-end">{{ m.montant(c.nonImposable, devise) }}</td></tr>{% endif %}
+                            {% if c.exoneration > 0 %}<tr><td class="text-body-secondary">− Exonération <span class="d-block" style="font-size: .7rem;">{{ c.detailExoneration }}</span></td><td class="text-end">{{ m.montant(c.exoneration, devise) }}</td></tr>{% endif %}
+                            <tr class="table-primary fw-bold"><td>Brut imposable</td><td class="text-end">{{ m.montant(c.brutImposable, devise) }}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if modifiable %}
+    <div class="col-xl-5">
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-calendar-check me-1 text-primary"></i>Jours travaillés</h2></div>
+            <div class="card-body">
+                <form method="post" action="{{ path('app_paie_jours', {mois: periode.code, id: affectation.id}) }}" class="d-flex gap-2 align-items-end">
+                    <div class="flex-grow-1">
+                        <label class="form-label" for="jours">Jours ({{ recap.joursBase }} = mois complet)</label>
+                        <input type="number" step="0.5" min="0" max="31" class="form-control" id="jours" name="jours" value="{{ recap.joursAuto ? '' : recap.jours + 0 }}" placeholder="Auto : {{ recap.jours + 0 }}">
+                    </div>
+                    <input type="hidden" name="_token" value="{{ csrf_token('jours-' ~ affectation.id) }}">
+                    <button class="btn btn-primary">Enregistrer</button>
+                </form>
+                <div class="form-text">Le salaire, le sursalaire et les avantages sont proratisés : montant × jours / {{ recap.joursBase }}. Laisser vide pour le calcul automatique (entrée ou sortie en cours de mois).</div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-plus-circle me-1 text-primary"></i>Élément ponctuel du mois</h2></div>
+            <div class="card-body">
+                <p class="small text-body-secondary">Prime, heures supplémentaires, rappel, retenue, acompte… Uniquement pour ce mois.</p>
+                {{ form_start(formPonctuel) }}
+                    {{ form_errors(formPonctuel) }}
+                    {{ form_row(formPonctuel.rubrique, {attr: {'data-rubrique-info': '#info-ponctuel', 'data-controller': 'liste-recherche'}}) }}
+                    <div id="info-ponctuel" class="small text-body-secondary mt-n2 mb-3"></div>
+                    <div class="row">
+                        <div class="col-6">{{ form_row(formPonctuel.base) }}</div>
+                        <div class="col-6">{{ form_row(formPonctuel.taux) }}</div>
+                    </div>
+                    {{ form_row(formPonctuel.montant) }}
+                    {{ form_row(formPonctuel.commentaire) }}
+                    <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Ajouter</button>
+                {{ form_end(formPonctuel) }}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-arrow-down-up me-1 text-warning"></i>Ajuster un avantage pour ce mois</h2></div>
+            <div class="card-body">
+                {% if avantages is empty %}
+                    <p class="small text-body-secondary mb-0">Ce salarié n'a pas d'avantage fixe sur ce mois.</p>
+                {% else %}
+                    <p class="small text-body-secondary">Remplace le montant habituel <strong>pour ce mois seulement</strong> (absence, prorata…). Le montant de la fiche du salarié ne change pas.</p>
+                    {{ form_start(formAjustement) }}
+                        {{ form_errors(formAjustement) }}
+                        {{ form_row(formAjustement.avantage) }}
+                        {{ form_row(formAjustement.montant) }}
+                        {{ form_row(formAjustement.commentaire) }}
+                        <button class="btn btn-warning"><i class="bi bi-check2 me-1"></i>Ajuster</button>
+                    {{ form_end(formAjustement) }}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

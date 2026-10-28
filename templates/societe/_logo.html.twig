@@ -1,0 +1,7 @@
+{# Logo de la société, ou ses initiales à défaut. Variables : societe, taille (sm | md | lg | xl). #}
+{% set taille = taille|default('md') %}
+{% if societe.logo %}
+    <span class="logo-societe logo-{{ taille }}"><img src="{{ asset('uploads/logos/' ~ societe.logo) }}" alt="Logo {{ societe.raisonSociale }}" loading="lazy"></span>
+{% else %}
+    <span class="avatar avatar-square {{ {sm: 'avatar-sm', md: '', lg: 'avatar-lg', xl: 'avatar-xl'}[taille] }}">{{ societe.initiales }}</span>
+{% endif %}

@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+{% import 'etat/_macros.html.twig' as e %}
+
+{% block title %}État des rubriques — {{ libellePlage }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+
+{% block body %}
+{% include 'etat/_barre.html.twig' with {titre: 'État des rubriques — ' ~ libellePlage, provisoire: etat.provisoire, route: 'app_etat_rubriques'} %}
+
+<section class="rapport-page">
+    {% include 'bulletin/_entete.html.twig' with {societe: societe, periode: libellePlage, titre: 'ÉTAT DES RUBRIQUES'} %}
+    {% if population %}<p class="text-center fw-semibold my-2">Salariés concernés : {{ population }}</p>{% endif %}
+    {% if etat.provisoire %}<div class="rapport-filigrane">DOCUMENT PROVISOIRE — CERTAINS MOIS NE SONT PAS ENCORE VALIDÉS</div>{% endif %}
+
+    {% if etat.nbBulletins == 0 %}
+        <p class="text-center text-body-secondary my-5">Aucun bulletin sur la période (paie non ouverte ou aucun salarié concerné).</p>
+    {% else %}
+        <table class="rapport-lignes">
+            <thead>
+                <tr class="etat-bandeau">
+                    <th colspan="2" class="g-identite"></th>
+                    <th colspan="2" class="g-retenues">Part salariale</th>
+                    <th class="g-patronal"></th>
+                    <th class="g-identite"></th>
+                </tr>
+                <tr><th style="width: 13%;">Rubrique</th><th>Libellé</th><th class="num">Gain</th><th class="num">Retenue</th><th class="num">Part patronale</th><th class="num">Bulletins</th></tr>
+            </thead>
+            <tbody>
+            {% for l in etat.lignes %}
+                <tr>
+                    <td>{{ l.code }}</td>
+                    <td>{{ l.libelle }}</td>
+                    <td class="num">{{ e.nombre(l.gain) }}</td>
+                    <td class="num">{{ e.nombre(l.retenue) }}</td>
+                    <td class="num">{{ e.nombre(l.patronal) }}</td>
+                    <td class="num text-body-secondary">{{ l.bulletins }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr><td></td><td>TOTAUX</td><td class="num">{{ e.nombre(etat.totaux.gain, '0') }}</td><td class="num">{{ e.nombre(etat.totaux.retenue, '0') }}</td><td class="num">{{ e.nombre(etat.totaux.patronal, '0') }}</td><td></td></tr>
+            </tfoot>
+        </table>
+
+        <div class="rapport-synthese">
+            <div><span>Effectif</span><strong>{{ etat.effectif }} salarié(s)</strong>{% if etat.nbBulletins != etat.effectif %}<span>{{ etat.nbBulletins }} bulletins</span>{% endif %}</div>
+            <div><span>Masse salariale brute</span><strong>{{ e.nombre(etat.totaux.brut, '0') }} {{ devise }}</strong></div>
+            <div class="net"><span>Net à payer</span><strong>{{ e.nombre(etat.totaux.net, '0') }} {{ devise }}</strong></div>
+            <div><span>Charges patronales</span><strong>{{ e.nombre(etat.totaux.patronal, '0') }} {{ devise }}</strong></div>
+        </div>
+    {% endif %}
+
+    <p class="rapport-note">Édité le {{ 'now'|date('d/m/Y à H:i') }} · montants en {{ devise }}. Net à payer = total des gains − total des retenues.</p>
+</section>
+{% endblock %}

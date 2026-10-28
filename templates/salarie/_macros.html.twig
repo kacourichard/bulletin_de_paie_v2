@@ -1,0 +1,31 @@
+{% macro montant(valeur, devise) %}
+    {%- if valeur is null -%}<span class="text-body-secondary">—</span>{%- else -%}{{ valeur|format_currency(devise, {}, 'fr') }}{%- endif -%}
+{% endmacro %}
+
+{% macro statut(affectation) %}
+    {%- if affectation.enCours -%}
+        <span class="badge-statut text-success">En poste</span>
+    {%- elseif affectation.motifSortie and affectation.motifSortie.value == 'TRANSFERT' -%}
+        <span class="badge-statut text-info">Transféré(e)</span>
+    {%- else -%}
+        <span class="badge-statut text-secondary">Sorti(e)</span>
+    {%- endif -%}
+{% endmacro %}
+
+{% macro contrat(affectation) %}
+    {%- set couleurs = {CDI: 'primary', CDD: 'warning', STAGE: 'info', APPRENTISSAGE: 'info', JOURNALIER: 'secondary', CONSULTANT: 'dark'} -%}
+    <span class="badge text-bg-{{ couleurs[affectation.typeContrat.value]|default('secondary') }} badge-soft">{{ affectation.typeContrat.value }}</span>
+{% endmacro %}
+
+{% macro anciennete(affectation) %}
+    {%- set a = affectation.anciennete -%}
+    {%- if a -%}
+        {%- if a.y > 0 %}{{ a.y }} an{{ a.y > 1 ? 's' }}{% if a.m > 0 %} {{ a.m }} mois{% endif %}{% elseif a.m > 0 %}{{ a.m }} mois{% else %}{{ a.d }} jour{{ a.d > 1 ? 's' }}{% endif -%}
+    {%- endif -%}
+{% endmacro %}
+
+{# Petit fond coloré pour l'avatar, stable pour une même personne. #}
+{% macro avatar(salarie, taille = '') %}
+    {%- set teintes = ['primary', 'success', 'info', 'warning', 'danger', 'secondary'] -%}
+    <span class="avatar {{ taille }} bg-{{ teintes[salarie.id % 6] }}-subtle text-{{ teintes[salarie.id % 6] }}-emphasis">{{ salarie.initiales }}</span>
+{% endmacro %}

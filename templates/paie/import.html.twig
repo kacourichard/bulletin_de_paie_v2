@@ -1,0 +1,103 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Import du rapport de travail — {{ periode.libelle }}{% endblock %}
+{% block page_title %}Importer le rapport de travail{% endblock %}
+{% block page_subtitle %}Paie — <strong>{{ periode.libelle }}</strong> · {{ periode.societe.raisonSociale }} : jours travaillés et éléments variables de tous les salariés en une fois.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_paie', {mois: periode.code}) }}">Paie — {{ periode.libelle }}</a></li><li class="breadcrumb-item active">Import Excel</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_paie_import_modele', {mois: periode.code}) }}" class="btn btn-light-subtle"><i class="bi bi-file-earmark-spreadsheet me-1 text-success"></i>Télécharger le modèle Excel</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-xl-4">
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-upload me-1 text-primary"></i>Fichier</h2></div>
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_row(form.fichier) }}
+                    <button class="btn btn-primary w-100"><i class="bi bi-search me-1"></i>Analyser le fichier</button>
+                {{ form_end(form) }}
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Comment faire</h2></div>
+            <div class="card-body small">
+                <ol class="ps-3 mb-0">
+                    <li class="mb-2"><a href="{{ path('app_paie_import_modele', {mois: periode.code}) }}">Téléchargez le modèle</a> : il contient déjà la liste des salariés du mois et une colonne par rubrique variable.</li>
+                    <li class="mb-2">Remplissez les <strong>jours</strong> travaillés et, pour chaque salarié, les heures supplémentaires (en <strong>heures</strong>) et les autres éléments (en <strong>montants</strong>). Supprimez les colonnes inutiles.</li>
+                    <li class="mb-2">Envoyez le fichier : rien n'est enregistré avant votre validation de l'aperçu.</li>
+                    <li>Un nouvel import remplace les éléments importés pour les mêmes rubriques (pas de doublon).</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        {% if analyse %}
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Aperçu — {{ analyse.fichier }}</h2>
+                    <span class="small text-body-secondary">{{ analyse.lignes|length }} salarié(s) à importer</span>
+                </div>
+                <div class="card-body pb-0">
+                    {% for e in analyse.erreurs %}
+                        <div class="alert alert-danger py-2 small mb-2"><i class="bi bi-x-circle me-1"></i>{{ e }}</div>
+                    {% endfor %}
+                    {% for a in analyse.avertissements %}
+                        <div class="alert alert-warning py-2 small mb-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ a }}</div>
+                    {% endfor %}
+                    {% if analyse.erreurs is empty and analyse.lignes is not empty %}
+                        <div class="alert alert-success py-2 small mb-2"><i class="bi bi-check-circle me-1"></i>Fichier valide : vérifiez l'aperçu puis validez l'import.</div>
+                    {% endif %}
+                </div>
+                {% if analyse.lignes is not empty %}
+                    <div class="table-responsive">
+                        <table class="table table-sm small mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Matricule</th><th>Salarié</th><th class="text-end">Jours</th>
+                                    {% for code in analyse.colonnes %}
+                                        {% set r = rubriques[code] ?? null %}
+                                        <th class="text-end" title="{{ r ? r.libelle }}">{{ code }}<div class="fw-normal text-body-secondary" style="font-size: .62rem; text-transform: none;">{{ r and r.horaire ? 'heures' : 'montant' }}</div></th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for l in analyse.lignes %}
+                                <tr>
+                                    <td class="font-monospace">{{ l.matricule }}</td>
+                                    <td>{{ l.nom }}</td>
+                                    <td class="text-end">{{ l.jours is not null ? l.jours + 0 : '—' }}</td>
+                                    {% for code in analyse.colonnes %}
+                                        <td class="text-end">{{ (l.elements[code] ?? null) is not null ? (l.elements[code] + 0)|number_format(rubriques[code].horaire ? 2 : 0, ',', ' ')|replace({',00': ''}) : '' }}</td>
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+                <div class="card-body border-top d-flex gap-2 align-items-center">
+                    {% if analyse.erreurs is empty and analyse.lignes is not empty %}
+                        <form method="post" action="{{ path('app_paie_import_valider', {mois: periode.code}) }}" data-confirm="Importer {{ analyse.lignes|length }} salarié(s) dans la paie de {{ periode.libelle }} ?">
+                            <input type="hidden" name="_token" value="{{ csrf_token('import-' ~ periode.code) }}">
+                            <button class="btn btn-success"><i class="bi bi-check2-all me-1"></i>Valider l'import</button>
+                        </form>
+                    {% elseif analyse.erreurs is not empty %}
+                        <span class="small text-danger"><i class="bi bi-info-circle me-1"></i>Corrigez les erreurs dans le fichier puis renvoyez-le : aucun élément n'a été enregistré.</span>
+                    {% else %}
+                        <span class="small text-body-secondary">Aucune donnée à importer (jours et montants vides).</span>
+                    {% endif %}
+                    <a href="{{ path('app_paie', {mois: periode.code}) }}" class="btn btn-light-subtle ms-auto">Retour à la paie</a>
+                </div>
+            </div>
+        {% else %}
+            <div class="card"><div class="empty-state">
+                <i class="bi bi-file-earmark-spreadsheet"></i>
+                Envoyez le rapport de travail pour voir l'aperçu de l'import.
+            </div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

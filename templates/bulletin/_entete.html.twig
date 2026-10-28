@@ -1,0 +1,34 @@
+{#
+    En-tête des bulletins de paie : logo et identité de la société, mention de la plateforme.
+    Variables : societe, periode (texte, ex. « Octobre 2026 »), titre (facultatif, « BULLETIN DE PAIE » par défaut),
+    logo_src / cipaie_src (facultatifs : chemins locaux pour la génération PDF).
+#}
+{% set logo_src = logo_src|default(societe.logo ? asset('uploads/logos/' ~ societe.logo) : null) %}
+{% set cipaie_src = cipaie_src|default(asset('images/cipaie-logo.jpg')) %}
+<div class="bulletin-entete">
+    <div class="be-haut">
+        <div class="be-logo">
+            {% if logo_src %}
+                <img src="{{ logo_src }}" alt="Logo {{ societe.raisonSociale }}">
+            {% else %}
+                <span style="color:#94a3b8; font-size:.7rem;">[ logo de la société ]</span>
+            {% endif %}
+        </div>
+        <div class="be-societe">
+            <strong>{{ societe.raisonSociale }}</strong><br>
+            {% if societe.adresse %}{{ societe.adresse }}<br>{% endif %}
+            {{ societe.ville ? societe.ville ~ ' — ' }}{{ societe.pays.nom }}<br>
+            {% if societe.numeroEmployeur %}N° employeur{% if societe.pays.organismeSocial %} {{ societe.pays.organismeSocial }}{% endif %} : {{ societe.numeroEmployeur }}<br>{% endif %}
+            {% if societe.numeroFiscal %}Identifiant fiscal : {{ societe.numeroFiscal }}{% endif %}
+        </div>
+        <div class="be-titre">
+            <div>{{ titre|default('BULLETIN DE PAIE') }}</div>
+            <div>Période : {{ periode }}</div>
+            <div>Devise : {{ societe.deviseEffective }}</div>
+        </div>
+    </div>
+    <div class="be-pied">
+        <span>Document édité via la plateforme Côte d'Ivoire Paie</span>
+        <img src="{{ cipaie_src }}" alt="Côte d'Ivoire Paie">
+    </div>
+</div>

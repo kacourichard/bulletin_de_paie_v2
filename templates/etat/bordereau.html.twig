@@ -1,0 +1,67 @@
+{% extends 'base.html.twig' %}
+{% import 'etat/_macros.html.twig' as e %}
+
+{% block title %}Bordereau des salaires — {{ libellePlage }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+
+{% block body %}
+{% include 'etat/_barre.html.twig' with {titre: 'Bordereau des salaires — ' ~ libellePlage, provisoire: bordereau.provisoire, route: 'app_etat_bordereau'} %}
+
+{% for g in bordereau.groupes %}
+    <section class="rapport-page">
+        {% include 'bulletin/_entete.html.twig' with {societe: societe, periode: libellePlage, titre: 'BORDEREAU DES SALAIRES'} %}
+        {% if bordereau.provisoire %}<div class="rapport-filigrane">DOCUMENT PROVISOIRE — CERTAINS MOIS NE SONT PAS ENCORE VALIDÉS</div>{% endif %}
+
+        <div class="rapport-identite">
+            <dl>
+                <dt>{{ g.bancaire ? 'Banque' : 'Paiement' }}</dt><dd><strong>{{ g.nom|upper }}</strong></dd>
+                <dt>Société</dt><dd><strong>{{ societe.raisonSociale }}</strong></dd>
+            </dl>
+            <dl>
+                <dt>Période</dt><dd>{{ libellePlage }}</dd>
+                <dt>Salariés</dt><dd>{{ g.lignes|length }}</dd>
+            </dl>
+        </div>
+
+        <table class="rapport-lignes">
+            <thead>
+                <tr>
+                    <th>N°</th>
+                    {% if bordereau.plusieursMois %}<th>Mois</th>{% endif %}
+                    <th>Matricule</th><th>Nom et prénoms</th><th>Mode de paiement</th><th>Banque</th><th>N° de compte</th><th class="num">Net à payer</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for l in g.lignes %}
+                {% set s = l.affectation.salarie %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    {% if bordereau.plusieursMois %}<td>{{ l.periode.libelle }}</td>{% endif %}
+                    <td>{{ l.affectation.matricule }}</td>
+                    <td>{{ s.nomComplet }}</td>
+                    <td>{{ s.modePaiement.libelle }}</td>
+                    <td>{{ s.banque ?: '—' }}</td>
+                    <td class="font-monospace">{{ (s.modePaiement.value == 'MOBILE_MONEY' ? s.telephone : s.numeroCompte) ?: '—' }}</td>
+                    <td class="num">{{ e.nombre(l.net, '0') }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr><td colspan="{{ bordereau.plusieursMois ? 7 : 6 }}" class="text-end">Total salaires nets ({{ societe.deviseEffective }})</td><td class="num">{{ e.nombre(g.total, '0') }}</td></tr>
+            </tfoot>
+        </table>
+
+        <p class="mt-4">Arrêté le présent bordereau à la somme de : <strong>{{ g.enLettres|upper }}</strong>{% if g.total + 0 != 0 %} ({{ e.nombre(g.total) }} {{ societe.deviseEffective }}){% endif %}.</p>
+
+        <div class="d-flex justify-content-between mt-5 px-4">
+            <div>Fait à {{ societe.ville ?: '…………………' }}, le {{ 'now'|date('d/m/Y') }}</div>
+            <div class="text-center">LE DIRECTEUR<br><br><br><br></div>
+        </div>
+    </section>
+{% else %}
+    <section class="rapport-page">
+        {% include 'bulletin/_entete.html.twig' with {societe: societe, periode: libellePlage, titre: 'BORDEREAU DES SALAIRES'} %}
+        <p class="text-center text-body-secondary my-5">Aucun salaire sur la période{% if parametres.banque|default('') %} pour « {{ parametres.banque }} »{% endif %} (paie non ouverte ou aucun salarié concerné).</p>
+    </section>
+{% endfor %}
+{% endblock %}

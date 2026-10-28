@@ -1,0 +1,105 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% block title %}Valider la paie — {{ periode.libelle }}{% endblock %}
+{% block page_title %}Valider la paie — {{ periode.libelle }}{% endblock %}
+{% block page_subtitle %}{{ periode.societe.raisonSociale }} · contrôlez le récapitulatif et les rapports individuels, puis validez. L'import d'un rapport de travail n'est pas obligatoire.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_paie', {mois: periode.code}) }}">Paie — {{ periode.libelle }}</a></li><li class="breadcrumb-item active">Validation</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_paie_rapports', {mois: periode.code}) }}" class="btn btn-light-subtle" target="_blank"><i class="bi bi-printer me-1"></i>Imprimer tous les rapports</a>
+{% endblock %}
+
+{% block content %}
+{% set dangers = alertes|filter(a => a.niveau == 'danger') %}
+{% set avertissements = alertes|filter(a => a.niveau == 'warning') %}
+{% set infos = alertes|filter(a => a.niveau == 'info') %}
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+        <div class="stat-label">Salariés</div><div class="stat-value">{{ lignes|length }}</div>
+    </div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+        <div class="stat-label">Masse salariale brute</div><div class="stat-value">{{ m.montant(totaux.brut, devise) }}</div>
+    </div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+        <div class="stat-label">Brut imposable</div><div class="stat-value">{{ m.montant(totaux.brutImposable, devise) }}</div>
+    </div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="card h-100 border-primary-subtle"><div class="card-body">
+        <div class="stat-label">Total net à payer</div><div class="stat-value text-primary">{{ m.montant(totaux.net, devise) }}</div>
+        <div class="small text-body-secondary">Charges patronales : {{ m.montant(totaux.patronal, devise) }}</div>
+    </div></div></div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h2 class="card-title"><i class="bi bi-clipboard-check me-1 text-primary"></i>Contrôles</h2>
+        <span class="small">
+            <span class="badge text-bg-danger badge-soft">{{ dangers|length }} bloquant(s)</span>
+            <span class="badge text-bg-warning badge-soft">{{ avertissements|length }} à vérifier</span>
+            <span class="badge text-bg-info badge-soft">{{ infos|length }} information(s)</span>
+        </span>
+    </div>
+    <div class="card-body">
+        {% for a in dangers|merge(avertissements)|merge(infos) %}
+            <div class="d-flex gap-2 align-items-start small py-1 border-bottom">
+                <i class="bi bi-{{ {danger: 'x-octagon-fill text-danger', warning: 'exclamation-triangle-fill text-warning', info: 'info-circle text-info'}[a.niveau] }} mt-1"></i>
+                <span class="flex-grow-1">{{ a.texte }}</span>
+                {% if a.affectation %}
+                    <a href="{{ path('app_paie_rapport', {mois: periode.code, id: a.affectation.id}) }}" target="_blank" class="text-nowrap">Rapport</a>
+                    {% if is_granted('paie.preparer') and not periode.cloturee %}<a href="{{ path('app_paie_salarie', {mois: periode.code, id: a.affectation.id}) }}" class="text-nowrap">Corriger</a>{% endif %}
+                {% endif %}
+            </div>
+        {% else %}
+            <p class="small text-success mb-0"><i class="bi bi-check-circle-fill me-1"></i>Aucune anomalie détectée.</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header"><h2 class="card-title">Récapitulatif par salarié</h2></div>
+    <div class="table-responsive">
+        <table class="table table-hover table-sm small mb-0" data-controller="datatable">
+            <thead><tr><th>Matricule</th><th>Salarié</th><th class="text-end">Jours</th><th class="text-end">Parts</th><th class="text-end">Salaire brut</th><th class="text-end">Brut imposable</th><th class="text-end">Retenues, impôt et cotisations</th><th class="text-end">Net à payer</th><th class="text-center">Variables</th><th></th></tr></thead>
+            <tbody>
+            {% for l in lignes %}
+                {% set r = l.recap %}
+                <tr>
+                    <td class="font-monospace">{{ l.affectation.matricule }}</td>
+                    <td class="fw-medium">{{ l.affectation.salarie.nomComplet }}</td>
+                    <td class="text-end">{{ r.jours + 0 }}</td>
+                    <td class="text-end">{{ r.calcul.parts is not null ? r.calcul.parts + 0 : '—' }}</td>
+                    <td class="text-end" data-order="{{ r.calcul.brut }}">{{ m.montant(r.calcul.brut, devise) }}</td>
+                    <td class="text-end" data-order="{{ r.calcul.brutImposable }}">{{ m.montant(r.calcul.brutImposable, devise) }}</td>
+                    <td class="text-end text-danger" data-order="{{ r.retenuesTotales }}">{{ r.retenuesTotales > 0 ? m.montant(r.retenuesTotales, devise) : '' }}</td>
+                    <td class="text-end fw-semibold" data-order="{{ r.net }}">{{ m.montant(r.net, devise) }}</td>
+                    <td class="text-center">{{ r.nbVariables ?: '—' }}</td>
+                    <td class="text-end text-nowrap"><a href="{{ path('app_paie_rapport', {mois: periode.code, id: l.affectation.id}) }}" target="_blank" class="btn btn-sm btn-light-subtle"><i class="bi bi-printer me-1"></i>Rapport</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold"><td colspan="4">Total ({{ lignes|length }})</td><td class="text-end">{{ m.montant(totaux.brut, devise) }}</td><td class="text-end">{{ m.montant(totaux.brutImposable, devise) }}</td><td class="text-end text-danger">{{ m.montant(totaux.retenues, devise) }}</td><td class="text-end text-primary">{{ m.montant(totaux.net, devise) }}</td><td colspan="2"></td></tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+        {% if periode.cloturee %}
+            <span class="text-success"><i class="bi bi-lock-fill me-1"></i>Paie validée le {{ periode.clotureeLe|date('d/m/Y à H:i') }}.</span>
+        {% elseif not is_granted('paie.valider') %}
+            <span class="text-body-secondary"><i class="bi bi-info-circle me-1"></i>Votre rôle ne permet pas de valider la paie : le responsable RH ou l'administrateur la validera.</span>
+        {% elseif bloquant %}
+            <span class="text-danger"><i class="bi bi-x-octagon me-1"></i>Corrigez les anomalies bloquantes avant de valider.</span>
+        {% else %}
+            <form method="post" action="{{ path('app_paie_valider', {mois: periode.code}) }}" data-confirm="Valider la paie de {{ periode.libelle }} pour {{ lignes|length }} salarié(s) ? Elle sera verrouillée.">
+                <input type="hidden" name="_token" value="{{ csrf_token('periode-' ~ periode.code) }}">
+                <button class="btn btn-success btn-lg"><i class="bi bi-check2-circle me-1"></i>Valider la paie de {{ periode.libelle }}</button>
+            </form>
+            <span class="small text-body-secondary">Après validation, plus aucune modification n'est possible (réouverture réservée au profil autorisé).</span>
+        {% endif %}
+        <a href="{{ path('app_paie', {mois: periode.code}) }}" class="btn btn-light-subtle ms-auto">Retour à la paie</a>
+    </div>
+</div>
+{% endblock %}

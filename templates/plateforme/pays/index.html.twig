@@ -1,0 +1,48 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Pays{% endblock %}
+{% block page_subtitle %}Pays dans lesquels des sociétés peuvent être créées, avec leur devise et leurs paramètres.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item active">Pays</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_pays_nouveau') }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Ajouter un pays</a>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover">
+            {# Colonnes secondaires masquées sur petits écrans ; paramétrage de la paie regroupé dans un menu. #}
+            <thead><tr><th>Pays</th><th>Devise</th><th class="d-none d-xl-table-cell">Langue</th><th class="d-none d-xl-table-cell">Fuseau horaire</th><th class="d-none d-lg-table-cell">Organisme social</th><th>Sociétés</th><th>Statut</th><th></th></tr></thead>
+            <tbody>
+            {% for p in liste %}
+                <tr>
+                    <td class="text-nowrap"><span class="fs-5 me-2">{{ p.drapeau }}</span><span class="fw-medium">{{ p.nom }}</span> <span class="text-body-secondary small">{{ p.codeIso }}</span></td>
+                    <td class="text-nowrap"><span class="font-monospace">{{ p.devise }}</span> <span class="small text-body-secondary">{{ p.devise|currency_symbol('fr') }}</span></td>
+                    <td class="d-none d-xl-table-cell">{{ p.langue|language_name('fr')|capitalize }}</td>
+                    <td class="d-none d-xl-table-cell small">{{ p.fuseauHoraire }}</td>
+                    <td class="d-none d-lg-table-cell">{{ p.organismeSocial ?: '—' }}</td>
+                    <td>{{ p.societes|length }}</td>
+                    <td>{% if p.actif %}<span class="badge-statut text-success">Ouvert</span>{% else %}<span class="badge-statut text-secondary">Fermé</span>{% endif %}</td>
+                    <td class="text-end text-nowrap">
+                        <div class="dropdown d-inline-block">
+                            {# Position « fixed » : le menu n'est pas coupé par le défilement du tableau. #}
+                            <button class="btn btn-sm btn-light-subtle dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false"><i class="bi bi-sliders me-1"></i>Paramétrage</button>
+                            <ul class="dropdown-menu dropdown-menu-end shadow">
+                                <li><a class="dropdown-item" href="{{ path('app_plateforme_parametres_paie', {pays: p.id}) }}"><i class="bi bi-calculator me-2"></i>Paramètres de paie</a></li>
+                                <li><a class="dropdown-item" href="{{ path('app_plateforme_cotisations', {pays: p.id}) }}"><i class="bi bi-percent me-2"></i>Cotisations</a></li>
+                                <li><a class="dropdown-item" href="{{ path('app_plateforme_secteurs', {pays: p.id}) }}"><i class="bi bi-buildings me-2"></i>Secteurs d'activité</a></li>
+                                <li><a class="dropdown-item" href="{{ path('app_plateforme_zones_transport', {pays: p.id}) }}"><i class="bi bi-bus-front me-2"></i>Indemnité de transport</a></li>
+                                <li><a class="dropdown-item" href="{{ path('app_plateforme_rubriques', {pays: p.id}) }}"><i class="bi bi-list-columns me-2"></i>Rubriques</a></li>
+                            </ul>
+                        </div>
+                        <a href="{{ path('app_plateforme_pays_modifier', {id: p.id}) }}" class="btn btn-sm btn-light-subtle" title="Modifier le pays"><i class="bi bi-pencil"></i><span class="d-none d-md-inline ms-1">Modifier</span></a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="8"><div class="empty-state"><i class="bi bi-globe-americas"></i>Aucun pays configuré.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

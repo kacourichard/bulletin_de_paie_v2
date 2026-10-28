@@ -1,0 +1,198 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = societe.deviseEffective %}
+{% set libelle_mois = mois|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize %}
+{% set code_mois = mois|date('Y-m') %}
+{% set peut_payer = periode and periode.cloturee and is_granted('paiement.executer') %}
+{% set icones = {VIREMENT: 'bank', MOBILE_MONEY: 'phone', CHEQUE: 'journal-check', ESPECES: 'cash'} %}
+
+{% block title %}Paiements — {{ libelle_mois }}{% endblock %}
+{% block page_title %}Paiement des salaires{% endblock %}
+{% block page_subtitle %}{{ societe.raisonSociale }} · paiement du net à payer des paies validées, ordre de virement et état d'émargement.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Paiements</li>{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group">
+        <a href="{{ path('app_paiements', {mois: precedent|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois précédent"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light-subtle fw-semibold" style="min-width: 160px; pointer-events: none;">{{ libelle_mois }}</span>
+        <a href="{{ path('app_paiements', {mois: suivant|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois suivant"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    {% if periode and periode.cloturee and etat.lignes is not empty %}
+        <a href="{{ path('app_paiement_ordre', {mois: code_mois}) }}" class="btn btn-light-subtle" title="Salariés restant à payer, groupés par banque"><i class="bi bi-file-earmark-excel me-1 text-success"></i>Ordre de virement</a>
+        <a href="{{ path('app_paiement_etat', {mois: code_mois}) }}" target="_blank" class="btn btn-light-subtle"><i class="bi bi-printer me-1"></i>État d'émargement</a>
+        {% if peut_payer and etat.totaux.nbAPayer %}
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#payer-tous"><i class="bi bi-cash-coin me-1"></i>Payer…</button>
+        {% endif %}
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if not periode %}
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-cash-coin"></i>
+        La paie de <strong>{{ libelle_mois }}</strong> n'est pas ouverte.
+    </div></div>
+{% elseif not periode.cloturee %}
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-hourglass-split"></i>
+        La paie de <strong>{{ libelle_mois }}</strong> est en préparation : les salaires pourront être payés une fois la paie validée.
+        {% if is_granted('paie.valider') %}<div class="mt-3"><a href="{{ path('app_paie_validation', {mois: code_mois}) }}" class="btn btn-primary btn-sm">Valider la paie</a></div>{% endif %}
+    </div></div>
+{% else %}
+    {% set t = etat.totaux %}
+    {% set avancement = t.net > 0 ? (t.paye / t.net * 100)|round : 0 %}
+    <div class="row g-3 mb-3">
+        <div class="col-md-3"><div class="card h-100"><div class="card-body"><div class="stat-label">Total net à payer</div><div class="stat-value">{{ m.montant(t.net, devise) }}</div><div class="small text-body-secondary">{{ etat.lignes|length }} salarié(s)</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100 border-success-subtle"><div class="card-body"><div class="stat-label">Payé</div><div class="stat-value text-success">{{ m.montant(t.paye, devise) }}</div><div class="small text-body-secondary">{{ t.nbPayes }} paiement(s)</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100{{ t.nbAPayer ? ' border-warning-subtle' }}"><div class="card-body"><div class="stat-label">Reste à payer</div><div class="stat-value{{ t.nbAPayer ? ' text-warning-emphasis' }}">{{ m.montant(t.reste, devise) }}</div><div class="small text-body-secondary">{{ t.nbAPayer }} salarié(s)</div></div></div></div>
+        <div class="col-md-3"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Avancement</div><div class="stat-value">{{ avancement }} %</div>
+            <div class="progress mt-2" style="height: 6px;"><div class="progress-bar bg-success" style="width: {{ avancement }}%"></div></div>
+        </div></div></div>
+    </div>
+
+    {% if t.nbAPayer == 0 and t.nbPayes > 0 %}
+        <div class="alert alert-success d-flex gap-2"><i class="bi bi-check-circle"></i><div>Tous les salaires de {{ libelle_mois }} sont payés.</div></div>
+    {% endif %}
+
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" data-controller="datatable">
+                <thead><tr><th>Salarié</th><th>Moyen de paiement</th><th>Banque / compte</th><th class="text-end">Net à payer</th><th>Statut</th><th class="text-end"></th></tr></thead>
+                <tbody>
+                {% for l in etat.lignes %}
+                    {% set a = l.affectation %}{% set s = a.salarie %}{% set p = l.paiement %}
+                    <tr>
+                        <td><div class="d-flex align-items-center gap-2">{{ m.avatar(s, 'avatar-sm') }}<div><div class="fw-medium">{{ s.nomComplet }}</div><div class="small text-body-secondary font-monospace">{{ a.matricule }}</div></div></div></td>
+                        <td class="small"><i class="bi bi-{{ icones[l.mode.value] }} me-1 text-body-secondary"></i>{{ l.mode.libelle }}</td>
+                        <td class="small">
+                            {% if p %}{{ p.banque ?: '' }}{% if p.compte %}<div class="font-monospace text-body-secondary">{{ p.compte }}</div>{% endif %}
+                            {% elseif l.mode.value == 'VIREMENT' %}
+                                {% if s.numeroCompte %}{{ s.banque }}<div class="font-monospace text-body-secondary">{{ s.numeroCompte }}</div>
+                                {% else %}<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>Compte non renseigné</span>{% endif %}
+                            {% elseif l.mode.value == 'MOBILE_MONEY' %}
+                                {{ s.banque }}<div class="font-monospace text-body-secondary">{{ s.telephone ?: '—' }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-end fw-bold" data-order="{{ l.net }}">{{ m.montant(l.net, devise) }}</td>
+                        <td class="small">
+                            {% if p %}
+                                <span class="text-success"><i class="bi bi-check2-circle me-1"></i>Payé le {{ p.payeLe|date('d/m/Y') }}</span>
+                                {% if p.reference %}<div class="text-body-secondary">Réf. {{ p.reference }}</div>{% endif %}
+                                {% if p.enregistrePar %}<div class="text-body-secondary">par {{ p.enregistrePar.nomComplet }}</div>{% endif %}
+                            {% elseif l.net <= 0 %}<span class="text-body-secondary">Rien à payer</span>
+                            {% else %}<span class="text-warning-emphasis"><i class="bi bi-hourglass me-1"></i>À payer</span>{% endif %}
+                            {% for x in l.annules %}
+                                <div class="text-body-secondary text-decoration-line-through" title="Annulé le {{ x.annuleLe|date('d/m/Y') }} : {{ x.motifAnnulation }}">{{ x.mode.libelle }} du {{ x.payeLe|date('d/m/Y') }}</div>
+                            {% endfor %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            {% if peut_payer and not p and l.net > 0 %}
+                                <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#payer-{{ a.id }}"><i class="bi bi-cash me-1"></i>Payer</button>
+                            {% elseif peut_payer and p %}
+                                <button type="button" class="btn btn-sm btn-light-subtle text-danger" data-bs-toggle="modal" data-bs-target="#annuler-{{ p.id }}" title="Annuler ce paiement"><i class="bi bi-x-circle"></i></button>
+                            {% endif %}
+                            {% if is_granted('bulletin.imprimer') %}<a href="{{ path('app_bulletin_voir', {mois: code_mois, id: a.id}) }}" target="_blank" class="btn btn-sm btn-light-subtle" title="Bulletin"><i class="bi bi-receipt"></i></a>{% endif %}
+
+                            {% if peut_payer and not p and l.net > 0 %}
+                                <div class="modal fade" id="payer-{{ a.id }}" tabindex="-1">
+                                    <div class="modal-dialog modal-dialog-centered"><div class="modal-content text-start">
+                                        <form method="post" action="{{ path('app_paiement_payer', {mois: code_mois, id: a.id}) }}">
+                                            <div class="modal-header"><h5 class="modal-title">Payer {{ s.nomComplet }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                            <div class="modal-body text-wrap">
+                                                <p>Net à payer : <strong>{{ m.montant(l.net, devise) }}</strong> ({{ libelle_mois }}).</p>
+                                                <div class="row g-3">
+                                                    <div class="col-sm-6">
+                                                        <label class="form-label" for="mode-{{ a.id }}">Moyen de paiement</label>
+                                                        <select class="form-select" id="mode-{{ a.id }}" name="mode">
+                                                            {% for mo in modes %}<option value="{{ mo.value }}"{{ mo == l.mode ? ' selected' }}>{{ mo.libelle }}</option>{% endfor %}
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-sm-6">
+                                                        <label class="form-label" for="date-{{ a.id }}">Date du paiement</label>
+                                                        <input type="date" class="form-control" id="date-{{ a.id }}" name="date" value="{{ 'today'|date('Y-m-d') }}" required>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label class="form-label" for="ref-{{ a.id }}">Référence <span class="text-body-secondary small">(n° de chèque, de virement ou de transaction)</span></label>
+                                                        <input type="text" class="form-control" id="ref-{{ a.id }}" name="reference" maxlength="80">
+                                                    </div>
+                                                </div>
+                                                <input type="hidden" name="_token" value="{{ csrf_token('paiements-' ~ code_mois) }}">
+                                            </div>
+                                            <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Annuler</button><button class="btn btn-success">Enregistrer le paiement</button></div>
+                                        </form>
+                                    </div></div>
+                                </div>
+                            {% elseif peut_payer and p %}
+                                <div class="modal fade" id="annuler-{{ p.id }}" tabindex="-1">
+                                    <div class="modal-dialog modal-dialog-centered"><div class="modal-content text-start">
+                                        <form method="post" action="{{ path('app_paiement_annuler', {mois: code_mois, paiement: p.id}) }}">
+                                            <div class="modal-header"><h5 class="modal-title">Annuler le paiement de {{ s.nomComplet }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                            <div class="modal-body text-wrap">
+                                                <p class="small text-body-secondary">{{ p.mode.libelle }} de {{ m.montant(p.montant, devise) }} du {{ p.payeLe|date('d/m/Y') }}. Le paiement reste dans l'historique et le salarié repasse « à payer ».</p>
+                                                <label class="form-label" for="motif-{{ p.id }}">Motif</label>
+                                                <input type="text" class="form-control" id="motif-{{ p.id }}" name="motif" maxlength="255" required placeholder="Ex. virement rejeté, chèque perdu, erreur de saisie">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('paiements-' ~ code_mois) }}">
+                                            </div>
+                                            <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Fermer</button><button class="btn btn-danger">Annuler le paiement</button></div>
+                                        </form>
+                                    </div></div>
+                                </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="6"><div class="empty-state"><i class="bi bi-people"></i>Aucun salarié sur ce mois.</div></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if peut_payer and t.nbAPayer %}
+        {% set restants = etat.lignes|filter(l => not l.paiement and l.net > 0) %}
+        <div class="modal fade" id="payer-tous" tabindex="-1">
+            <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+                <form method="post" action="{{ path('app_paiement_payer_tous', {mois: code_mois}) }}" data-confirm="Enregistrer le paiement des salariés sélectionnés ?">
+                    <div class="modal-header"><h5 class="modal-title">Payer les salaires de {{ libelle_mois }}</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                    <div class="modal-body">
+                        <p class="small text-body-secondary">Chaque salarié est payé selon le moyen de paiement de sa fiche, pour son net à payer. À faire une fois le virement exécuté par la banque, les chèques remis ou les espèces versées.</p>
+                        <label class="form-label">Salariés à payer</label>
+                        <div class="list-group mb-3">
+                            <label class="list-group-item d-flex gap-2">
+                                <input class="form-check-input" type="radio" name="mode" value="" checked>
+                                <span class="flex-grow-1">Tous les salariés restant à payer</span>
+                                <span class="text-nowrap">{{ restants|length }} · {{ m.montant(t.reste, devise) }}</span>
+                            </label>
+                            {% for mo in modes %}
+                                {% set du_mode = restants|filter(l => l.mode == mo) %}
+                                {% if du_mode is not empty %}
+                                    {% set somme = 0 %}{% for l in du_mode %}{% set somme = somme + l.net %}{% endfor %}
+                                    <label class="list-group-item d-flex gap-2">
+                                        <input class="form-check-input" type="radio" name="mode" value="{{ mo.value }}">
+                                        <span class="flex-grow-1"><i class="bi bi-{{ icones[mo.value] }} me-1"></i>{{ mo.libelle }} uniquement</span>
+                                        <span class="text-nowrap">{{ du_mode|length }} · {{ m.montant(somme, devise) }}</span>
+                                    </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label" for="date-tous">Date du paiement</label>
+                                <input type="date" class="form-control" id="date-tous" name="date" value="{{ 'today'|date('Y-m-d') }}" required>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label" for="ref-tous">Référence <span class="text-body-secondary small">(ex. n° d'ordre de virement)</span></label>
+                                <input type="text" class="form-control" id="ref-tous" name="reference" maxlength="80">
+                            </div>
+                        </div>
+                        <input type="hidden" name="_token" value="{{ csrf_token('paiements-' ~ code_mois) }}">
+                    </div>
+                    <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Annuler</button><button class="btn btn-success"><i class="bi bi-cash-coin me-1"></i>Enregistrer les paiements</button></div>
+                </form>
+            </div></div>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}

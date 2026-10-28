@@ -1,0 +1,114 @@
+{% set route = app.request.attributes.get('_route') %}
+{% set societe = societe_courante() %}
+{% set societes = societes_disponibles() %}
+
+{% macro lien(route_courante, cible, icone, libelle, prefixe = null) %}
+    {% set actif = route_courante == cible or (prefixe and (route_courante == prefixe or route_courante starts with prefixe ~ '_')) %}
+    <a href="{{ path(cible) }}" class="nav-item-link{{ actif ? ' active' }}"{% if actif %} aria-current="page"{% endif %}>
+        <i class="bi bi-{{ icone }}"></i><span>{{ libelle }}</span>
+    </a>
+{% endmacro %}
+
+{% macro bientot(icone, libelle) %}
+    <span class="nav-item-link disabled" title="Module en cours de migration depuis la v1">
+        <i class="bi bi-{{ icone }}"></i><span>{{ libelle }}</span><span class="nav-badge">Bientôt</span>
+    </span>
+{% endmacro %}
+
+<aside class="app-sidebar" aria-label="Navigation principale">
+    <a href="{{ path('app_dashboard') }}" class="sidebar-brand" title="{{ app_nom }} — plateforme Côte d'Ivoire Paie">
+        <span class="brand-logo"><img src="{{ asset('images/cipaie-logo.jpg') }}" alt="Côte d'Ivoire Paie"></span>
+        <span class="brand-text">{{ app_nom }}<span class="brand-version">{{ app_version }}</span></span>
+    </a>
+
+    {% if societe or societes|length > 0 %}
+        <div class="sidebar-societe">
+            <div class="dropdown">
+                <button class="societe-switch" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    {% if societe %}
+                        {% include 'societe/_logo.html.twig' with {taille: 'md'} %}
+                        <span class="flex-grow-1 overflow-hidden">
+                            <span class="nom">{{ societe.raisonSociale }}</span>
+                            <small class="text-truncate">{{ societe.pays.drapeau }} {{ societe.pays.nom }} · {{ societe.succursale.nom }}</small>
+                        </span>
+                    {% else %}
+                        <span class="avatar avatar-square"><i class="bi bi-building"></i></span>
+                        <span class="flex-grow-1"><span class="nom">Choisir une société</span><small>{{ societes|length }} disponible(s)</small></span>
+                    {% endif %}
+                    <i class="bi bi-chevron-expand"></i>
+                </button>
+                <div class="dropdown-menu shadow" style="width: calc(var(--bp-sidebar-width) - 2rem); max-height: 60vh; overflow-y: auto;">
+                    <h6 class="dropdown-header">Changer de société</h6>
+                    {% for s in societes|slice(0, 8) %}
+                        <form method="post" action="{{ path('app_societe_basculer', {id: s.id}) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('basculer-societe') }}">
+                            <button class="dropdown-item d-flex align-items-center gap-2{{ societe and s.id == societe.id ? ' active' }}">
+                                <span>{{ s.pays.drapeau }}</span><span class="text-truncate">{{ s.raisonSociale }}</span>
+                                <small class="ms-auto text-body-secondary text-truncate" style="max-width: 40%;">{{ s.succursale.nom }}</small>
+                            </button>
+                        </form>
+                    {% endfor %}
+                    {% if societes|length > 8 %}
+                        <a class="dropdown-item small" href="{{ path('app_societe_choisir') }}">Voir les {{ societes|length }} sociétés…</a>
+                    {% endif %}
+                    {% if is_granted('ROLE_SUPER_ADMIN') and societe %}
+                        <div class="dropdown-divider"></div>
+                        <form method="post" action="{{ path('app_societe_quitter') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('basculer-societe') }}">
+                            <button class="dropdown-item"><i class="bi bi-grid me-2"></i>Retour à la plateforme</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <nav class="sidebar-nav">
+        {{ _self.lien(route, 'app_dashboard', 'speedometer2', 'Tableau de bord') }}
+
+        {% if societe %}
+            {% if is_granted('salarie.voir') or is_granted('paie.voir') or is_granted('etat.voir') %}
+                <div class="nav-section">Paie</div>
+                {% if is_granted('salarie.voir') %}{{ _self.lien(route, 'app_salarie', 'person-badge', 'Salariés', 'app_salarie') }}{% endif %}
+                {% if is_granted('paie.voir') %}
+                    {{ _self.lien(route, 'app_paie', 'calendar2-check', 'Paie du mois', 'app_paie') }}
+                    {{ _self.lien(route, 'app_heures_sup', 'stopwatch', 'Heures supplémentaires', 'app_heures_sup') }}
+                    {% if is_granted('bulletin.imprimer') %}{{ _self.lien(route, 'app_bulletins', 'receipt', 'Bulletins de paie', 'app_bulletin') }}{% endif %}
+                {% endif %}
+                {% if is_granted('paiement.voir') %}{{ _self.lien(route, 'app_paiements', 'cash-coin', 'Paiements', 'app_paiement') }}{% endif %}
+                {% if is_granted('etat.voir') %}{{ _self.lien(route, 'app_etats', 'bar-chart-line', 'États de paie', 'app_etat') }}{% endif %}
+                {% if is_granted('paie.voir') or is_granted('parametre.gerer') %}{{ _self.lien(route, 'app_rubriques_baremes', 'sliders', 'Rubriques & barèmes', 'app_rubrique') }}{% endif %}
+            {% endif %}
+
+            {% if is_granted('societe.voir') or is_granted('utilisateur.voir') or is_granted('role.gerer') %}
+                <div class="nav-section">Administration</div>
+                {% if is_granted('societe.voir') %}{{ _self.lien(route, 'app_ma_societe', 'building', 'Ma société', 'app_ma_societe') }}{% endif %}
+                {% if is_granted('utilisateur.voir') %}{{ _self.lien(route, 'app_equipe', 'people', 'Utilisateurs', 'app_equipe') }}{% endif %}
+                {% if is_granted('role.gerer') %}{{ _self.lien(route, 'app_role', 'shield-lock', 'Rôles & permissions', 'app_role') }}{% endif %}
+            {% endif %}
+        {% endif %}
+
+        {% set mes_succursales = succursales_administrees() %}
+        {% if mes_succursales is not empty %}
+            <div class="nav-section">Succursale</div>
+            {% if mes_succursales|length == 1 %}
+                {{ _self.lien(route, 'app_succursales', 'diagram-3', mes_succursales[0].nom, 'app_succursale') }}
+            {% else %}
+                {{ _self.lien(route, 'app_succursales', 'diagram-3', 'Mes succursales', 'app_succursale') }}
+            {% endif %}
+        {% endif %}
+
+        {% if is_granted('ROLE_SUPER_ADMIN') %}
+            <div class="nav-section">Plateforme</div>
+            {{ _self.lien(route, 'app_plateforme_succursales', 'diagram-3', 'Succursales', 'app_plateforme_succursale') }}
+            {{ _self.lien(route, 'app_plateforme_pays', 'globe-americas', 'Pays', 'app_plateforme_pays') }}
+            {{ _self.lien(route, 'app_plateforme_societes', 'buildings', 'Sociétés', 'app_plateforme_societe') }}
+            {{ _self.lien(route, 'app_plateforme_utilisateurs', 'person-gear', 'Comptes', 'app_plateforme_utilisateur') }}
+        {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+        Plateforme <strong class="text-white-50">Côte d'Ivoire Paie</strong><br>
+        {{ app_nom }} {{ app_version }} · © {{ 'now'|date('Y') }}
+    </div>
+</aside>

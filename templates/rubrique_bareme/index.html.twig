@@ -1,0 +1,333 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = societe.deviseEffective %}
+{% set peut_gerer = is_granted('parametre.gerer') %}
+{% set nb_masquees = rubriques|filter(r => societe.rubriqueMasquee(r))|length %}
+{% macro taux(v) %}{{ v is null ? '—' : (v + 0)|number_format((v + 0) == (v + 0)|round ? 0 : 2, ',', ' ') ~ ' %' }}{% endmacro %}
+{% macro nombre(v) %}{{ (v + 0)|number_format((v + 0) == (v + 0)|round ? 0 : 2, ',', ' ') }}{% endmacro %}
+{% import _self as f %}
+
+{% block title %}Rubriques & barèmes{% endblock %}
+{% block page_subtitle %}
+    {{ societe.raisonSociale }} · législation de paie <strong>{{ pays.drapeau }} {{ pays.nom }}</strong>{% if pays != societe.pays %} (société située en {{ societe.pays.nom }}){% endif %}
+    {% if societe.secteurActivite %} · secteur « {{ societe.secteurActivite.libelle }} », accident du travail {{ f.taux(societe.tauxAccidentTravail) }}{% endif %}
+{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Rubriques & barèmes</li>{% endblock %}
+
+{% block content %}
+<div class="alert alert-info d-flex gap-2 small">
+    <i class="bi bi-info-circle"></i>
+    <div>
+        Les rubriques, taux et barèmes sont ceux de la législation {{ pays.nom }}, tenus à jour par la plateforme pour toutes les sociétés de ce pays :
+        une erreur ou une évolution légale est à signaler à l'administrateur de la plateforme.
+        {% if peut_gerer %}La société choisit en revanche les rubriques qu'elle <strong>propose</strong> à la saisie.{% endif %}
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rubriques" type="button" role="tab"><i class="bi bi-list-columns me-1"></i>Rubriques <span class="badge text-bg-secondary rounded-pill">{{ rubriques|length - nb_masquees }}{% if nb_masquees %} / {{ rubriques|length }}{% endif %}</span></button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#baremes" type="button" role="tab"><i class="bi bi-percent me-1"></i>Barèmes et cotisations</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#simulateur" type="button" role="tab"><i class="bi bi-calculator me-1"></i>Simulateur</button></li>
+</ul>
+
+<div class="tab-content">
+{# ─────────────── Rubriques ─────────────── #}
+<div class="tab-pane fade show active" id="rubriques" role="tabpanel">
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" data-controller="datatable" data-datatable-longueur-value="50">
+                <thead><tr>
+                    <th>Code</th><th>Libellé</th><th>Type</th><th>Traitement social</th><th>Traitement fiscal</th><th>Usage</th>
+                    <th class="text-end">Utilisation dans la société</th><th class="text-end" data-dt-tri="non">Proposée</th>
+                </tr></thead>
+                <tbody>
+                {% for r in rubriques %}
+                    {% set u = utilisation[r.id] ?? {} %}
+                    {% set masquee = societe.rubriqueMasquee(r) %}
+                    <tr class="{{ masquee or not r.actif ? 'text-body-secondary' }}">
+                        <td class="font-monospace fw-semibold">{{ r.code }}</td>
+                        <td>{{ r.libelle }}{% if r.horaire %} <span class="badge text-bg-light border badge-soft">heures × {{ r.coefficientHoraire + 0 }}</span>{% endif %}</td>
+                        <td data-order="{{ r.gain ? 0 : 1 }}">{% if r.gain %}<span class="badge text-bg-success badge-soft">Gain</span>{% else %}<span class="badge text-bg-danger badge-soft">Retenue</span>{% endif %}</td>
+                        <td class="small">{{ r.traitementSocial.libelle }}</td>
+                        <td class="small">{{ r.traitementFiscalDetaille }}</td>
+                        <td class="small">
+                            {% if r.elementFixe %}<span class="badge text-bg-primary badge-soft">{{ r.gain ? 'Avantage fixe' : 'Retenue fixe' }}</span>{% if not r.proratisee %} <span class="badge text-bg-warning badge-soft">sans prorata</span>{% endif %}{% endif %}
+                            {% if r.elementVariable %}<span class="badge text-bg-info badge-soft">Variable du mois</span>{% endif %}
+                        </td>
+                        <td class="text-end small" data-order="{{ (u.avantages ?? 0) * 1000 + (u.variables ?? 0) }}">
+                            {% if u.avantages ?? 0 %}<div>{{ u.avantages }} salarié(s) en avantage</div>{% endif %}
+                            {% if u.variables ?? 0 %}<div>{{ u.variables }} saisie(s) · dernière en {{ u.dernierMois|date('m/Y') }}</div>{% endif %}
+                            {% if not (u.avantages ?? 0) and not (u.variables ?? 0) %}<span class="text-body-secondary">—</span>{% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            {% if not r.actif %}
+                                <span class="badge text-bg-secondary badge-soft" title="Rubrique désactivée par la plateforme pour tout le pays">Désactivée (pays)</span>
+                            {% elseif peut_gerer %}
+                                <form method="post" action="{{ path('app_rubrique_bareme_proposer', {id: r.id}) }}" class="d-inline"
+                                      {% if not masquee and ((u.avantages ?? 0) or (u.variables ?? 0)) %}data-confirm="Ne plus proposer « {{ r.libelle }} » ? Les avantages et saisies existants sont conservés, mais la rubrique ne pourra plus être choisie."{% endif %}>
+                                    <input type="hidden" name="_token" value="{{ csrf_token('rubriques-baremes') }}">
+                                    <input type="hidden" name="proposer" value="{{ masquee ? 1 : 0 }}">
+                                    {% if masquee %}
+                                        <button class="btn btn-sm btn-light-subtle" title="Proposer de nouveau cette rubrique"><i class="bi bi-eye-slash me-1"></i>Masquée</button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-light-subtle text-success" title="Ne plus proposer cette rubrique dans la société"><i class="bi bi-check2-circle me-1"></i>Proposée</button>
+                                    {% endif %}
+                                </form>
+                            {% else %}
+                                {% if masquee %}<span class="badge text-bg-secondary badge-soft">Masquée</span>{% else %}<span class="text-success"><i class="bi bi-check2-circle"></i></span>{% endif %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8"><div class="empty-state"><i class="bi bi-list-columns"></i>Aucune rubrique pour la législation {{ pays.nom }} : contactez l'administrateur de la plateforme.</div></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-body border-top small text-body-secondary">
+            « Avantage fixe » : attribuable sur la fiche d'un salarié · « Variable du mois » : saisissable dans la paie du mois et dans l'import du rapport de travail.
+            Une rubrique masquée n'est plus proposée à la saisie ; les avantages et éléments déjà enregistrés restent sur les bulletins.
+        </div>
+    </div>
+</div>
+
+{# ─────────────── Barèmes et cotisations ─────────────── #}
+<div class="tab-pane fade" id="baremes" role="tabpanel">
+{% if not parametre %}
+    <div class="card"><div class="empty-state"><i class="bi bi-sliders"></i>La paie {{ pays.nom }} n'est pas encore paramétrée par la plateforme.</div></div>
+{% else %}
+    <div class="row g-3">
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-clock me-2"></i>Temps de travail et arrondis</h2></div>
+                <div class="card-body">
+                    <dl class="info-list">
+                        <dt>Mois de paie</dt><dd>{{ parametre.joursMois }} jours{{ parametre.proratiserFixes ? ' — éléments fixes au prorata des jours travaillés' : '' }}</dd>
+                        <dt>Heures par mois</dt><dd>{{ f.nombre(parametre.heuresMois) }} h (base du taux horaire des heures supplémentaires)</dd>
+                        <dt>Montants</dt><dd>arrondis à {{ parametre.decimales }} décimale(s)</dd>
+                        <dt>Net à payer</dt><dd>{{ parametre.arrondiNet.libelle }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-calculator me-2"></i>Salaire brut et brut imposable</h2></div>
+                <div class="card-body">
+                    <dl class="info-list">
+                        <dt>Salaire brut</dt>
+                        <dd>Salaire catégoriel{{ parametre.brutInclutSursalaire ? ' + sursalaire' }}{{ parametre.brutInclutAnciennete ? ' + prime d\'ancienneté' }}{{ parametre.brutInclutGainsSoumis ? ' + primes et indemnités soumises' }}{{ parametre.brutInclutGainsNonSoumis ? ' + gains non soumis' }}</dd>
+                        <dt>Brut imposable</dt><dd>Brut − gains non imposables − exonération des indemnités plafonnées</dd>
+                        <dt>Exonération</dt><dd>{{ parametre.modeExoneration.libelle }}</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        {% if anciennete %}
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-hourglass-split me-2"></i>Prime d'ancienneté <span class="badge text-bg-light border font-monospace ms-1">{{ parametre.ancienneteCode }}</span></h2></div>
+                <div class="card-body">
+                    <p class="small text-body-secondary mb-2">
+                        Base : {{ parametre.ancienneteBase.libelle|lower }} · dès {{ parametre.ancienneteAnneesMin }} an(s) : {{ f.taux(parametre.ancienneteTauxInitial) }},
+                        puis + {{ f.taux(parametre.ancienneteTauxParAn) }} par année, plafonnée à {{ f.taux(parametre.ancienneteTauxMax) }}.
+                        {{ parametre.ancienneteDepuisGroupe ? 'Ancienneté comptée depuis l\'entrée dans le groupe (transferts compris).' : 'Ancienneté comptée depuis l\'entrée dans la société.' }}
+                    </p>
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Années</th>{% for an, t in anciennete %}<th class="text-end">{{ an }}</th>{% endfor %}</tr></thead>
+                        <tbody><tr><td class="small">Taux</td>{% for an, t in anciennete %}<td class="text-end">{{ f.taux(t) }}</td>{% endfor %}</tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if parametre.partsActives and grille is not empty %}
+        <div class="col-xl-6">
+            <div class="card h-100">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-people me-2"></i>Nombre de parts</h2></div>
+                <div class="card-body">
+                    {% set enfants_max = 0 %}
+                    {% for s, ligne in grille %}{% for n, p in ligne %}{% if n > enfants_max %}{% set enfants_max = n %}{% endif %}{% endfor %}{% endfor %}
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead><tr><th>Situation \ enfants</th>{% for n in 0..enfants_max %}<th class="text-center">{{ n }}{{ loop.last ? '+' }}</th>{% endfor %}</tr></thead>
+                            <tbody>
+                            {% for s in situations %}
+                                {% if grille[s.value] is defined %}
+                                    <tr><td class="small text-nowrap">{{ s.libelle }}</td>{% for n in 0..enfants_max %}<td class="text-center">{{ (grille[s.value][n] ?? null) is not null ? f.nombre(grille[s.value][n]) : '' }}</td>{% endfor %}</tr>
+                                {% endif %}
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if parametre.impotActif %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-bank me-2"></i>{{ parametre.impotLibelle }} <span class="badge text-bg-light border font-monospace ms-1">{{ parametre.impotCode }}</span></h2>
+                    <span class="small text-body-secondary">Assiette : {{ parametre.impotAssiette.libelle|lower }}</span></div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="fw-semibold small mb-1">Barème mensuel progressif</div>
+                            <table class="table table-sm mb-1">
+                                <thead><tr><th class="text-end">Au-delà de</th><th class="text-end">Jusqu'à</th><th class="text-end">Taux</th></tr></thead>
+                                <tbody>
+                                {% for t in tranches %}
+                                    <tr><td class="text-end">{{ m.montant(t.de, devise) }}</td><td class="text-end">{{ t.a is not null ? m.montant(t.a, devise) : 'au-delà' }}</td><td class="text-end fw-semibold">{{ f.taux(t.taux) }}</td></tr>
+                                {% else %}
+                                    <tr><td colspan="3" class="text-body-secondary">Barème non renseigné.</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="form-text">Chaque taux s'applique à la part du revenu comprise dans sa tranche.</div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="fw-semibold small mb-1">Réduction selon le nombre de parts</div>
+                            <table class="table table-sm mb-1">
+                                <thead><tr><th class="text-end">Parts</th><th class="text-end">Réduction mensuelle</th></tr></thead>
+                                <tbody>
+                                {% for r in reductions %}
+                                    <tr><td class="text-end">{{ f.nombre(r.parts) }}</td><td class="text-end">{{ m.montant(r.montant, devise) }}</td></tr>
+                                {% else %}
+                                    <tr><td colspan="2" class="text-body-secondary">Aucune réduction.</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                            <div class="form-text">Impôt = barème − réduction (jamais négatif).</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-percent me-2"></i>Cotisations aux taux de la société</h2></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>Cotisation</th><th>Catégorie</th><th>Assiette</th><th class="text-end">Plafond</th><th class="text-end">Part salariale</th><th class="text-end">Part patronale</th><th class="text-end">Non-nationaux</th><th>Codes</th></tr></thead>
+                        <tbody>
+                        {% for l in cotisations %}
+                            {% set c = l.cotisation %}
+                            <tr>
+                                <td class="fw-medium">{{ c.libelle }}{% if c.tauxPatronalSociete %} <span class="badge text-bg-info badge-soft" title="Taux du secteur d'activité de la société">taux du secteur</span>{% endif %}</td>
+                                <td><span class="badge text-bg-{{ c.categorie.value == 'FISCALE' ? 'warning' : 'info' }} badge-soft">{{ c.categorie.libelle }}</span></td>
+                                <td class="small">{{ c.assiette.libelle }}{% if c.forfaitUnitaire %} : {{ m.montant(c.forfaitUnitaire, devise) }} / personne{% endif %}</td>
+                                <td class="text-end small">{{ c.plafond ? m.montant(c.plafond, devise) : '—' }}</td>
+                                <td class="text-end">{{ c.forfaitUnitaire and c.tauxSalarial is not null ? 'forfait' : f.taux(c.tauxSalarial) }}</td>
+                                <td class="text-end fw-semibold">{{ c.forfaitUnitaire and l.national is not null ? 'forfait' : f.taux(l.national) }}</td>
+                                <td class="text-end">{{ l.nonNational != l.national ? f.taux(l.nonNational) : '' }}</td>
+                                <td class="font-monospace small">{{ c.codeSalarial ?: '—' }} / {{ c.codePatronal ?: '—' }}</td>
+                            </tr>
+                        {% else %}
+                            <tr><td colspan="8"><div class="empty-state"><i class="bi bi-percent"></i>Aucune cotisation pour la législation {{ pays.nom }}.</div></td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="card-body border-top small text-body-secondary">
+                    Taux en pourcentage de l'assiette. « Non-nationaux » : taux patronal appliqué aux salariés d'une autre nationalité que {{ pays.nom }}, quand il diffère.
+                    {% if not societe.secteurActivite %}<span class="text-warning-emphasis">Secteur d'activité non renseigné : le taux accident du travail par défaut de la cotisation s'applique.</span>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+</div>
+
+{# ─────────────── Simulateur ─────────────── #}
+<div class="tab-pane fade" id="simulateur" role="tabpanel">
+    {% set s = simulation.saisie %}
+    {% set res = simulation.resultat %}
+    <div class="row g-3">
+        <div class="col-xl-5">
+            <form class="card" method="get" action="{{ path('app_rubriques_baremes') }}#simulateur">
+                <input type="hidden" name="sim" value="1">
+                <div class="card-header"><h2 class="card-title">Salarié simulé (mois complet)</h2></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label small" for="sim-categoriel">Salaire catégoriel</label><input id="sim-categoriel" name="categoriel" class="form-control text-end" inputmode="decimal" value="{{ s.categoriel + 0 }}"></div>
+                        <div class="col-6"><label class="form-label small" for="sim-sursalaire">Sursalaire</label><input id="sim-sursalaire" name="sursalaire" class="form-control text-end" inputmode="decimal" value="{{ s.sursalaire + 0 }}"></div>
+                        <div class="col-6"><label class="form-label small" for="sim-embauche">Date d'embauche</label><input id="sim-embauche" type="date" name="embauche" class="form-control" value="{{ s.embauche|date('Y-m-d') }}"></div>
+                        <div class="col-6"><label class="form-label small" for="sim-national">Nationalité</label>
+                            <select id="sim-national" name="national" class="form-select"><option value="1"{{ s.national ? ' selected' }}>{{ pays.nom }} (national)</option><option value="0"{{ not s.national ? ' selected' }}>Autre (non-national)</option></select></div>
+                        <div class="col-7"><label class="form-label small" for="sim-situation">Situation familiale</label>
+                            <select id="sim-situation" name="situation" class="form-select">{% for x in situations %}<option value="{{ x.value }}"{{ s.situation == x ? ' selected' }}>{{ x.libelle }}</option>{% endfor %}</select></div>
+                        <div class="col-5"><label class="form-label small" for="sim-enfants">Enfants à charge</label><input id="sim-enfants" type="number" min="0" max="20" name="enfants" class="form-control" value="{{ s.enfants }}"></div>
+                    </div>
+                    <div class="fw-semibold small mt-3 mb-1">Primes, indemnités et retenues</div>
+                    {% for i in 0..lignesSimulateur - 1 %}
+                        {% set l = s.lignes[i] ?? {rubrique: null, montant: 0} %}
+                        <div class="input-group input-group-sm mb-1">
+                            <select name="lignes[{{ i }}][rubrique]" class="form-select" data-controller="liste-recherche" style="max-width: 70%;" aria-label="Rubrique {{ i + 1 }}">
+                                <option value="">— Rubrique —</option>
+                                {% for r in disponibles %}<option value="{{ r.id }}"{{ l.rubrique == r.id ? ' selected' }}>{{ r.code }} — {{ r.libelle }}{{ r.gain ? '' : ' (retenue)' }}</option>{% endfor %}
+                            </select>
+                            <input name="lignes[{{ i }}][montant]" class="form-control text-end" inputmode="decimal" placeholder="Montant" value="{{ l.montant + 0 ?: '' }}" aria-label="Montant {{ i + 1 }}">
+                        </div>
+                    {% endfor %}
+                    <div class="form-text">Rubriques proposées par la société, avec leur traitement social et fiscal réel.</div>
+                </div>
+                <div class="card-footer d-flex gap-2">
+                    <button class="btn btn-primary"><i class="bi bi-calculator me-1"></i>Calculer</button>
+                    <a href="{{ path('app_rubriques_baremes') }}#simulateur" class="btn btn-light-subtle">Réinitialiser</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-xl-7">
+            {% if not res %}
+                <div class="card h-100"><div class="empty-state"><i class="bi bi-calculator"></i>Renseignez le salarié puis « Calculer » : brut, impôt, cotisations, net à payer et coût employeur aux règles de la société.</div></div>
+            {% else %}
+                {% set c = res.calcul %}{% set b = res.bulletin %}
+                <div class="card">
+                    <div class="card-header"><h2 class="card-title">Bulletin simulé</h2><span class="badge text-bg-warning badge-soft">Simulation — aucun enregistrement</span></div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead><tr><th>Code</th><th>Libellé</th><th class="text-end">Base</th><th class="text-end">Taux</th><th class="text-end">Gain</th><th class="text-end">Retenue</th><th class="text-end">Patronal</th></tr></thead>
+                            <tbody>
+                            {% for g in res.gains %}
+                                <tr><td class="font-monospace small">{{ g.code }}</td><td>{{ g.libelle }}{% if not g.dansBrut %} <span class="badge text-bg-light border badge-soft">hors brut</span>{% endif %}</td><td></td><td></td><td class="text-end">{{ m.montant(g.montant, devise) }}</td><td></td><td></td></tr>
+                            {% endfor %}
+                            <tr class="fw-semibold table-light"><td class="font-monospace small">{{ parametre ? parametre.codeBrut }}</td><td>Salaire brut</td><td></td><td></td><td class="text-end">{{ m.montant(c.brut, devise) }}</td><td></td><td></td></tr>
+                            <tr class="table-light"><td class="font-monospace small">{{ parametre ? parametre.codeBrutImposable }}</td><td>Brut imposable{% if c.detailExoneration %} <span class="small text-body-secondary">(exonération : {{ c.detailExoneration }})</span>{% endif %}</td><td></td><td></td><td class="text-end">{{ m.montant(c.brutImposable, devise) }}</td><td></td><td></td></tr>
+                            {% if b.impot %}
+                                <tr><td class="font-monospace small">{{ b.impot.code }}</td><td>{{ b.impot.libelle }}{% if c.parts is not null %} <span class="small text-body-secondary">({{ c.parts + 0 }} part(s), réduction {{ m.montant(b.impot.reduction, devise) }})</span>{% endif %}</td><td class="text-end small">{{ m.montant(b.impot.base, devise) }}</td><td class="text-end small">barème</td><td></td><td class="text-end">{{ m.montant(b.impot.montant, devise) }}</td><td></td></tr>
+                            {% endif %}
+                            {% for x in b.salariales %}
+                                <tr><td class="font-monospace small">{{ x.code }}</td><td>{{ x.libelle }}</td><td class="text-end small">{{ m.montant(x.base, devise) }}</td><td class="text-end small">{{ f.taux(x.taux) }}</td><td></td><td class="text-end">{{ m.montant(x.montant, devise) }}</td><td></td></tr>
+                            {% endfor %}
+                            {% for x in res.retenues %}
+                                <tr><td class="font-monospace small">{{ x.code }}</td><td>{{ x.libelle }}</td><td></td><td></td><td></td><td class="text-end">{{ m.montant(x.montant, devise) }}</td><td></td></tr>
+                            {% endfor %}
+                            {% if b.arrondi != 0 %}
+                                <tr><td></td><td>Arrondi du net</td><td></td><td></td><td class="text-end">{{ b.arrondi < 0 ? m.montant(-b.arrondi, devise) }}</td><td class="text-end">{{ b.arrondi > 0 ? m.montant(b.arrondi, devise) }}</td><td></td></tr>
+                            {% endif %}
+                            {% for x in b.patronalesSociales|merge(b.patronalesFiscales) %}
+                                <tr class="text-body-secondary"><td class="font-monospace small">{{ x.code }}</td><td>{{ x.libelle }} <span class="small">(employeur)</span></td><td class="text-end small">{{ m.montant(x.base, devise) }}</td><td class="text-end small">{{ f.taux(x.taux) }}</td><td></td><td></td><td class="text-end">{{ m.montant(x.montant, devise) }}</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="row g-2 mt-1">
+                    <div class="col-sm-3"><div class="card h-100"><div class="card-body py-2"><div class="stat-label">Salaire brut</div><div class="fw-semibold">{{ m.montant(c.brut, devise) }}</div></div></div></div>
+                    <div class="col-sm-3"><div class="card h-100 border-primary-subtle"><div class="card-body py-2"><div class="stat-label">Net à payer</div><div class="fw-bold text-primary">{{ m.montant(b.netAPayer, devise) }}</div></div></div></div>
+                    <div class="col-sm-3"><div class="card h-100"><div class="card-body py-2"><div class="stat-label">Charges patronales</div><div class="fw-semibold">{{ m.montant(b.totalPatronal, devise) }}</div></div></div></div>
+                    <div class="col-sm-3"><div class="card h-100"><div class="card-body py-2"><div class="stat-label">Coût employeur</div><div class="fw-semibold">{{ m.montant(res.coutEmployeur, devise) }}</div></div></div></div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Ma société{% endblock %}
+{% block page_title %}<span class="d-inline-flex align-items-center gap-3">{% include 'societe/_logo.html.twig' with {taille: 'lg'} %}{{ societe.raisonSociale }}</span>{% endblock %}
+{% block page_subtitle %}{{ societe.pays.drapeau }} {{ societe.pays.nom }}{% if societe.ville %} · {{ societe.ville }}{% endif %}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Ma société</li>{% endblock %}
+{% block page_actions %}
+    {% if is_granted('societe.modifier') %}
+        <a href="{{ path('app_ma_societe_modifier') }}" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Modifier</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h2 class="card-title"><i class="bi bi-receipt me-1 text-primary"></i>Aperçu de l'en-tête des bulletins de paie</h2>
+        {% if is_granted('societe.modifier') %}
+            <a href="{{ path('app_ma_societe_modifier') }}" class="btn btn-sm btn-light-subtle">{{ societe.logo ? 'Changer le logo' : 'Ajouter le logo' }}</a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if not societe.logo %}
+            <div class="alert alert-warning py-2 small"><i class="bi bi-exclamation-triangle me-1"></i>Aucun logo : ajoutez-le pour qu'il apparaisse sur les bulletins de paie.</div>
+        {% endif %}
+        {% include 'bulletin/_entete.html.twig' with {periode: 'now'|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize} %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title">Informations générales</h2></div>
+            <div class="card-body">
+                <dl class="info-list">
+                    <dt>Raison sociale</dt><dd>{{ societe.raisonSociale }}</dd>
+                    <dt>Adresse</dt><dd>{{ societe.adresse ?: '—' }}</dd>
+                    <dt>Ville</dt><dd>{{ societe.ville ?: '—' }}</dd>
+                    <dt>Téléphone</dt><dd>{{ societe.telephone ?: '—' }}</dd>
+                    <dt>E-mail</dt><dd>{{ societe.email ?: '—' }}</dd>
+                    <dt>Date de création</dt><dd>{{ societe.dateCreation ? societe.dateCreation|date('d/m/Y') : '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Immatriculations</h2></div>
+            <div class="card-body">
+                <dl class="info-list">
+                    <dt>N° employeur{% if societe.pays.organismeSocial %} ({{ societe.pays.organismeSocial }}){% endif %}</dt><dd>{{ societe.numeroEmployeur ?: '—' }}</dd>
+                    <dt>Identifiant fiscal</dt><dd>{{ societe.numeroFiscal ?: '—' }}</dd>
+                    <dt>Registre du commerce</dt><dd>{{ societe.registreCommerce ?: '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Paramètres régionaux</h2></div>
+            <div class="card-body">
+                <dl class="info-list">
+                    <dt>Pays</dt><dd>{{ societe.pays.drapeau }} {{ societe.pays.nom }}</dd>
+                    <dt>Législation de paie</dt><dd>{{ societe.paysPaie.drapeau }} {{ societe.paysPaie.nom }}{% if societe.legislationEtrangere %} <span class="badge text-bg-warning badge-soft">autre pays</span>{% endif %}</dd>
+                    <dt>Devise</dt><dd>{{ societe.deviseEffective }}{% if societe.devise %} <span class="badge text-bg-info badge-soft">personnalisée</span>{% endif %}</dd>
+                    <dt>Langue</dt><dd>{{ societe.pays.langue|language_name('fr')|capitalize }}</dd>
+                    <dt>Fuseau</dt><dd>{{ societe.pays.fuseauHoraire }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

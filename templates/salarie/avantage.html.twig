@@ -1,0 +1,35 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Ajouter un avantage{% endblock %}
+{% block page_subtitle %}{{ affectation.salarie.nomComplet }} · <span class="font-monospace">{{ affectation.matricule }}</span> · {{ affectation.poste }}{% endblock %}
+{% block breadcrumb %}{% include 'salarie/_fil.html.twig' with {etape: 'Ajouter un avantage'} %}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        {% if form.rubrique.vars.choices is empty %}
+            <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-1"></i>Aucune rubrique d'avantage n'est définie pour {{ affectation.societe.paysPaie.nom }}. Demandez à la plateforme de compléter le référentiel.</div>
+        {% endif %}
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_errors(form) }}
+                    <div class="row">
+                        <div class="col-md-8">{{ form_row(form.rubrique, {attr: {'data-rubrique-info': '#info-rubrique', 'data-controller': 'liste-recherche'}}) }}</div>
+                        <div class="col-md-4">{{ form_row(form.montant) }}</div>
+                        <div class="col-12 mb-3"><div id="info-rubrique" class="small text-body-secondary"></div></div>
+                        <div class="col-md-8">{{ form_row(form.libelleSpecifique) }}</div>
+                        <div class="col-md-4">{{ form_row(form.dateDebut) }}</div>
+                        <div class="col-12">{{ form_row(form.commentaire) }}</div>
+                    </div>
+                    <div class="form-check form-switch mb-3">{{ form_widget(form.enNature) }}{{ form_label(form.enNature) }}</div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Ajouter l'avantage</button>
+                        <a href="{{ path('app_salarie_voir', {id: affectation.id, _fragment: 'avantages'}) }}" class="btn btn-light-subtle">Annuler</a>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

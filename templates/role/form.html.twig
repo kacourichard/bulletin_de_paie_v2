@@ -1,0 +1,68 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ role.id ? 'Modifier le rôle' : 'Nouveau rôle' }}{% endblock %}
+{% block page_subtitle %}{{ role.id ? role.libelle : 'Définissez un rôle sur mesure pour votre organisation.' }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_role') }}">Rôles & permissions</a></li><li class="breadcrumb-item active">{{ role.id ? role.libelle : 'Nouveau' }}</li>{% endblock %}
+
+{% block content %}
+{% set modules = modules_permissions() %}
+{{ form_start(form) }}
+<div class="row g-3">
+    <div class="col-lg-4">
+        <div class="card position-sticky" style="top: calc(var(--bp-topbar-height) + 1rem);">
+            <div class="card-header"><h2 class="card-title">Rôle</h2></div>
+            <div class="card-body">
+                {{ form_errors(form) }}
+                {{ form_row(form.libelle) }}
+                {{ form_row(form.code) }}
+                {{ form_row(form.description) }}
+                {{ form_row(form.couleur) }}
+                {% if role.systeme %}
+                    <div class="small text-body-secondary mb-3"><i class="bi bi-lock me-1"></i>Rôle par défaut : son code ne peut pas être modifié et il ne peut pas être supprimé.</div>
+                {% endif %}
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary">Enregistrer</button>
+                    <a href="{{ path('app_role') }}" class="btn btn-light-subtle">Annuler</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Permissions</h2>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-light-subtle" onclick="document.querySelectorAll('.perm-module input[type=checkbox]').forEach(c => c.checked = true)">Tout cocher</button>
+                    <button type="button" class="btn btn-sm btn-light-subtle" onclick="document.querySelectorAll('.perm-module input[type=checkbox]').forEach(c => c.checked = false)">Tout décocher</button>
+                </div>
+            </div>
+            <div class="card-body">
+                {% for code_module, module in modules %}
+                    {% set cases = form.permissions.children|filter(c => c.vars.attr['data-module']|default('') == code_module) %}
+                    {% if cases|length %}
+                        <div class="perm-module">
+                            <div class="perm-module-head">
+                                <i class="bi bi-{{ module.icone }} text-primary"></i>{{ module.libelle }}
+                            </div>
+                            <div class="perm-module-body">
+                                {% for case in cases %}
+                                    <div class="form-check form-switch">
+                                        <input type="checkbox" class="form-check-input" role="switch" id="{{ case.vars.id }}" name="{{ case.vars.full_name }}" value="{{ case.vars.value }}"{{ case.vars.checked ? ' checked' }}>
+                                        {% do case.setRendered %}
+                                        <label class="form-check-label" for="{{ case.vars.id }}">
+                                            {{ case.vars.label }}
+                                            <span class="perm-code d-block">{{ case.vars.attr['data-code'] }}</span>
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+                {% do form.permissions.setRendered %}
+            </div>
+        </div>
+    </div>
+</div>
+{{ form_end(form) }}
+{% endblock %}

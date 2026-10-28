@@ -1,0 +1,33 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ rubrique.id ? 'Rubrique ' ~ rubrique.code : 'Nouvelle rubrique' }}{% endblock %}
+{% block page_subtitle %}{{ pays.drapeau }} Référentiel {{ pays.nom }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_rubriques', {pays: pays.id}) }}">Rubriques {{ pays.nom }}</a></li><li class="breadcrumb-item active">{{ rubrique.id ? rubrique.code : 'Nouvelle' }}</li>{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 860px;">
+    <div class="card-body">
+        {{ form_start(form) }}
+            {{ form_errors(form) }}
+            <div class="row">
+                <div class="col-md-3">{{ form_row(form.code) }}</div>
+                <div class="col-md-9">{{ form_row(form.libelle) }}</div>
+                <div class="col-md-4">{{ form_row(form.type) }}</div>
+                <div class="col-md-8">{{ form_row(form.section) }}</div>
+                <div class="col-md-4">{{ form_row(form.traitementSocial) }}</div>
+                <div class="col-md-4">{{ form_row(form.traitementFiscal) }}</div>
+                <div class="col-md-4">{{ form_row(form.plafondExoneration) }}</div>
+                <div class="col-md-6">{{ form_row(form.coefficientHoraire) }}</div>
+            </div>
+            <div class="form-check form-switch">{{ form_widget(form.elementFixe) }}{{ form_label(form.elementFixe) }}</div>
+            <div class="form-check form-switch ms-4">{{ form_widget(form.proratisee) }}{{ form_label(form.proratisee) }}{{ form_help(form.proratisee) }}</div>
+            <div class="form-check form-switch">{{ form_widget(form.elementVariable) }}{{ form_label(form.elementVariable) }}</div>
+            <div class="form-check form-switch mb-3">{{ form_widget(form.actif) }}{{ form_label(form.actif) }}</div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary">Enregistrer</button>
+                <a href="{{ path('app_plateforme_rubriques', {pays: pays.id}) }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

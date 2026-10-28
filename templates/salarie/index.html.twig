@@ -1,0 +1,146 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% block title %}Salariés{% endblock %}
+{% block page_subtitle %}Personnel de <strong>{{ societe.raisonSociale }}</strong>.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Salariés</li>{% endblock %}
+{% block page_actions %}
+    {% if is_granted('salarie.creer') %}
+        <a href="{{ path('app_salarie_nouveau') }}" class="btn btn-primary"><i class="bi bi-person-plus me-1"></i>Nouveau salarié</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+{% set voir_salaires = is_granted('salarie.remuneration') %}
+{% set devise = societe.deviseEffective %}
+
+<ul class="nav nav-pills mb-3 gap-1">
+    {% for cle, libelle in {actifs: 'En poste', sortis: 'Sortis', tous: 'Tous'} %}
+        <li class="nav-item">
+            <a class="nav-link{{ statut == cle ? ' active' }}" href="{{ path('app_salarie', {statut: cle}) }}">
+                {{ libelle }}
+                {% if cle != 'tous' %}<span class="badge rounded-pill {{ statut == cle ? 'text-bg-light' : 'text-bg-secondary' }} ms-1">{{ compteurs[cle] }}</span>{% endif %}
+            </a>
+        </li>
+    {% endfor %}
+</ul>
+
+<div class="card">
+    <div class="card-header flex-wrap">
+        <form class="d-flex flex-wrap gap-2 w-100" method="get">
+            <input type="hidden" name="statut" value="{{ statut }}">
+            <select name="contrat" class="form-select" style="max-width: 220px;" onchange="this.form.submit()">
+                <option value="">Tous les contrats</option>
+                {% for t in typesContrat %}
+                    <option value="{{ t.value }}"{{ contrat == t ? ' selected' }}>{{ t.libelle }}</option>
+                {% endfor %}
+            </select>
+            {% if contrat %}<a href="{{ path('app_salarie', {statut: statut}) }}" class="btn btn-link">Réinitialiser</a>{% endif %}
+            <span class="ms-auto d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="ouvrir"><i class="bi bi-arrows-expand me-1"></i>Tout déplier</button>
+                <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="fermer"><i class="bi bi-arrows-collapse me-1"></i>Tout replier</button>            </span>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table paie-table mb-0" data-controller="datatable" data-datatable-recherche-value="{{ recherche }}">
+            <thead>
+                <tr>
+                    <th style="width: 34px;"></th>
+                    <th>Salarié</th><th>Matricule</th><th>Poste</th><th>Contrat</th><th>Entrée</th>
+                    {% if voir_salaires %}<th class="text-end">Salaire de base</th>{% endif %}
+                    <th>Statut</th>
+                    <th class="text-end" data-dt-tri="non">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for a in affectations %}
+                {% set s = a.salarie %}
+                {% set r = a.enCours ? a.remunerationA : a.remunerationA(a.dateSortie) %}
+                <tr class="paie-salarie">
+                    <td><button type="button" class="btn btn-sm btn-link p-0 text-body-secondary" data-detail-toggle="detail-salarie-{{ a.id }}" aria-expanded="false" aria-label="Afficher le détail"><i class="bi bi-chevron-down"></i></button></td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            {{ m.avatar(s) }}
+                            <div>
+                                <a href="{{ path('app_salarie_voir', {id: a.id}) }}" class="fw-medium text-reset text-decoration-none">{{ s.nomComplet }}</a>
+                                <div class="small text-body-secondary">{{ s.telephone ?: s.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="font-monospace small">{{ a.matricule }}</td>
+                    <td>{{ a.poste ?: '—' }}{% if a.service %}<div class="small text-body-secondary">{{ a.service }}</div>{% endif %}</td>
+                    <td>{{ m.contrat(a) }}</td>
+                    <td class="small" data-order="{{ a.dateEntree|date('Y-m-d') }}">{{ a.dateEntree|date('d/m/Y') }}<div class="text-body-secondary">{{ m.anciennete(a) }}</div></td>
+                    {% if voir_salaires %}<td class="text-end fw-medium" data-order="{{ r ? r.salaireBase : 0 }}">{{ m.montant(r ? r.salaireBase : null, devise) }}</td>{% endif %}
+                    <td>{{ m.statut(a) }}{% if not a.enCours %}<div class="small text-body-secondary">le {{ a.dateSortie|date('d/m/Y') }}</div>{% endif %}</td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-light-subtle" data-detail-toggle="detail-salarie-{{ a.id }}" aria-expanded="false"><i class="bi bi-chevron-down me-1"></i>Détails</button>
+                        <a href="{{ path('app_salarie_voir', {id: a.id}) }}" class="btn btn-sm btn-primary" title="Ouvrir la fiche"><i class="bi bi-person-vcard"></i></a>
+                    </td>
+                </tr>
+                <tr class="paie-detail" id="detail-salarie-{{ a.id }}" hidden>
+                    <td></td>
+                    <td colspan="{{ voir_salaires ? 8 : 7 }}" class="pt-0">
+                        <div class="row g-3 small">
+                            <div class="col-lg-4">
+                                <div class="fw-semibold text-uppercase text-body-secondary mb-1" style="font-size: .68rem; letter-spacing: .05em;">Dossier</div>
+                                <dl class="info-list">
+                                    <dt>Nationalité</dt><dd>{{ s.nationaliteNom ?: '—' }}</dd>
+                                    <dt>Situation</dt><dd>{{ s.situationFamiliale ? s.situationFamiliale.libelle : '—' }} · {{ s.nombreEnfants }} enfant(s)</dd>
+                                    <dt>Emploi / métier</dt><dd>{{ a.metier ?: '—' }}</dd>
+                                    <dt>Catégorie</dt><dd>{{ a.categorie ?: '—' }}{% if a.echelon %} / {{ a.echelon }}{% endif %}</dd>
+                                    <dt>Lieu de travail</dt><dd>{{ a.site ?: '—' }}</dd>
+                                    <dt>N° {{ societe.pays.organismeSocial ?: 'sécurité sociale' }}</dt><dd>{{ s.numeroSecuriteSociale ?: '—' }}</dd>
+                                    <dt>Paiement</dt><dd>{{ s.modePaiement.libelle }}</dd>
+                                </dl>
+                            </div>
+                            <div class="col-lg-8">
+                                <div class="fw-semibold text-uppercase text-body-secondary mb-1" style="font-size: .68rem; letter-spacing: .05em;">Éléments de salaire fixes</div>
+                                {% if voir_salaires %}
+                                    {% set avantages = a.enCours ? a.avantagesA : a.avantagesA(a.dateSortie) %}
+                                    <table class="table table-sm paie-lignes mb-1">
+                                        <thead><tr><th style="width: 70px;">Code</th><th>Élément</th><th>Depuis</th><th class="text-end">Montant mensuel</th></tr></thead>
+                                        <tbody>
+                                            <tr><td class="font-monospace">—</td><td>Salaire catégoriel</td><td>{{ r ? r.dateEffet|date('d/m/Y') }}</td><td class="text-end">{{ m.montant(r ? r.salaireBase : null, devise) }}</td></tr>
+                                            {% if r and r.sursalaire > 0 %}
+                                                <tr><td class="font-monospace">—</td><td>Sursalaire</td><td>{{ r.dateEffet|date('d/m/Y') }}</td><td class="text-end">{{ m.montant(r.sursalaire, devise) }}</td></tr>
+                                            {% endif %}
+                                            {% for av in avantages %}
+                                                <tr>
+                                                    <td class="font-monospace">{{ av.rubrique ? av.rubrique.code : '—' }}</td>
+                                                    <td>{{ av.libelle }}{% if av.enNature %} <span class="badge text-bg-info badge-soft">En nature</span>{% endif %}</td>
+                                                    <td>{{ av.dateDebut|date('d/m/Y') }}</td>
+                                                    <td class="text-end">{{ m.montant(av.montant, devise) }}</td>
+                                                </tr>
+                                            {% else %}
+                                                <tr><td colspan="4" class="text-body-secondary">Aucun avantage.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr class="fw-semibold"><td colspan="3" class="text-end">Rémunération fixe mensuelle</td>
+                                                <td class="text-end text-primary">{{ m.montant(r ? r.salaireTotal + (a.enCours ? a.totalAvantagesA : a.totalAvantagesA(a.dateSortie)) : null, devise) }}</td></tr>
+                                        </tfoot>
+                                    </table>
+                                {% else %}
+                                    <p class="text-body-secondary mb-0"><i class="bi bi-lock me-1"></i>Les montants sont réservés aux profils autorisés à voir les salaires.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="9">
+                    <div class="empty-state">
+                        <i class="bi bi-person-badge"></i>
+                        {% if contrat %}Aucun salarié ne correspond à la recherche.{% else %}Aucun salarié pour le moment.{% endif %}
+                        {% if is_granted('salarie.creer') and not contrat and statut == 'actifs' %}
+                            <div class="mt-3"><a href="{{ path('app_salarie_nouveau') }}" class="btn btn-primary btn-sm">Enregistrer le premier salarié</a></div>
+                        {% endif %}
+                    </div>
+                </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

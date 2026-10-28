@@ -1,0 +1,39 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Nouvelle société{% endblock %}
+{% block page_subtitle %}Dans la succursale <strong>{{ succursale.nom }}</strong>. Le pays peut différer de celui des autres sociétés.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_succursale_voir', {id: succursale.id}) }}">{{ succursale.nom }}</a></li><li class="breadcrumb-item active">Nouvelle société</li>{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form) }}
+                    {{ form_errors(form) }}
+                    {% include 'societe/_form.html.twig' %}
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Créer la société</button>
+                        <a href="{{ path('app_succursale_voir', {id: succursale.id}) }}" class="btn btn-light-subtle">Annuler</a>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-4">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Et ensuite ?</h2></div>
+            <div class="card-body small">
+                <p>La société est créée avec quatre rôles prêts à l'emploi :</p>
+                <ul class="list-unstyled">
+                    <li class="mb-1"><span class="badge text-bg-info badge-soft">Responsable RH</span> personnel, éléments de paie</li>
+                    <li class="mb-1"><span class="badge text-bg-primary badge-soft">Comptable</span> calcul et validation de la paie, états</li>
+                    <li class="mb-1"><span class="badge text-bg-success badge-soft">Trésorier</span> paiement des salaires</li>
+                    <li class="mb-1"><span class="badge text-bg-secondary badge-soft">Consultant</span> lecture seule</li>
+                </ul>
+                <p class="mb-0 text-body-secondary">Vous pourrez ensuite ajouter les personnes de l'équipe depuis « Gérer l'équipe ».</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

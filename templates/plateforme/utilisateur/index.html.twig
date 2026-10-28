@@ -1,0 +1,86 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Comptes{% endblock %}
+{% block page_subtitle %}Tous les comptes : administrateurs de succursale et équipes des sociétés.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item active">Comptes</li>{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <form method="get" class="d-flex gap-2">
+            <select name="profil" class="form-select" style="max-width: 240px;" onchange="this.form.submit()">
+                {% for cle, libelle in {'': 'Tous les profils', administrateurs: 'Administrateurs de succursale', operationnels: 'RH, comptables, trésoriers…', super: 'Super-administrateurs'} %}
+                    <option value="{{ cle }}"{{ profil == cle ? ' selected' }}>{{ libelle }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <span class="small text-body-secondary">{{ utilisateurs|length }} compte(s)</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover" data-controller="datatable">
+            <thead><tr><th>Utilisateur</th><th>Administre</th><th>Sociétés & rôles</th><th>Statut</th><th>Dernière connexion</th><th></th></tr></thead>
+            <tbody>
+            {% for u in utilisateurs %}
+                {% set soi = u.id == app.user.id %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="avatar">{{ u.initiales }}</span>
+                            <div>
+                                <div class="fw-medium">{{ u.nomComplet }}
+                                    {% if u.superAdmin %}<span class="badge text-bg-dark badge-soft">Super-admin</span>{% endif %}
+                                </div>
+                                <div class="small text-body-secondary">{{ u.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% for s in u.succursalesAdministrees %}
+                            <a href="{{ path('app_succursale_voir', {id: s.id}) }}" class="badge text-bg-danger badge-soft text-decoration-none mb-1"><i class="bi bi-diagram-3 me-1"></i>{{ s.nom }}</a>
+                        {% else %}
+                            <span class="small text-body-secondary">—</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% for m in u.membres %}
+                            <div class="small mb-1">
+                                {{ m.societe.pays.drapeau }} {{ m.societe.raisonSociale }}
+                                <span class="badge text-bg-{{ m.role.couleur }} badge-soft">{{ m.role.libelle }}</span>
+                            </div>
+                        {% else %}
+                            <span class="small text-body-secondary">—</span>
+                        {% endfor %}
+                    </td>
+                    <td>{% if u.actif %}<span class="badge-statut text-success">Actif</span>{% else %}<span class="badge-statut text-danger">Désactivé</span>{% endif %}</td>
+                    <td class="small text-body-secondary" data-order="{{ u.derniereConnexion ? u.derniereConnexion|date('Y-m-d H:i') : '' }}">{{ u.derniereConnexion ? u.derniereConnexion|date('d/m/Y H:i') : 'Jamais' }}</td>
+                    <td class="text-end">
+                        {% if not soi %}
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light-subtle btn-icon" data-bs-toggle="dropdown" aria-label="Actions"><i class="bi bi-three-dots"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow">
+                                    <li><form method="post" action="{{ path('app_plateforme_utilisateur_statut', {id: u.id}) }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('user-' ~ u.id) }}">
+                                        <button class="dropdown-item">{% if u.actif %}<i class="bi bi-slash-circle me-2"></i>Désactiver le compte{% else %}<i class="bi bi-check-circle me-2"></i>Réactiver le compte{% endif %}</button>
+                                    </form></li>
+                                    <li><form method="post" action="{{ path('app_plateforme_utilisateur_reinitialiser', {id: u.id}) }}" data-confirm="Générer un nouveau mot de passe provisoire ?">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('user-' ~ u.id) }}">
+                                        <button class="dropdown-item"><i class="bi bi-key me-2"></i>Réinitialiser le mot de passe</button>
+                                    </form></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><form method="post" action="{{ path('app_plateforme_utilisateur_super_admin', {id: u.id}) }}" data-confirm="{{ u.superAdmin ? 'Retirer les droits super-administrateur ?' : 'Donner les droits super-administrateur (accès à toute la plateforme) ?' }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('user-' ~ u.id) }}">
+                                        <button class="dropdown-item text-danger"><i class="bi bi-stars me-2"></i>{{ u.superAdmin ? 'Retirer super-admin' : 'Nommer super-admin' }}</button>
+                                    </form></li>
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6"><div class="empty-state"><i class="bi bi-people"></i>Aucun compte trouvé.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ zone.id ? zone.libelle : 'Nouvelle zone de transport' }}{% endblock %}
+{% block page_subtitle %}{{ pays.drapeau }} {{ pays.nom }} · indemnité de transport{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_zones_transport', {pays: pays.id}) }}">Transport {{ pays.nom }}</a></li><li class="breadcrumb-item active">{{ zone.id ? 'Modifier' : 'Nouvelle' }}</li>{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 700px;">
+    <div class="card-body">
+        {{ form_start(form) }}
+            {{ form_errors(form) }}
+            <div class="row">
+                <div class="col-md-7">{{ form_row(form.libelle) }}</div>
+                <div class="col-md-5">{{ form_row(form.montant) }}</div>
+                <div class="col-md-9">{{ form_row(form.rubrique, {attr: {'data-controller': 'liste-recherche'}}) }}</div>
+                <div class="col-md-3">{{ form_row(form.ordre) }}</div>
+            </div>
+            <div class="form-check form-switch mb-3">{{ form_widget(form.actif) }}{{ form_label(form.actif) }}</div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary">Enregistrer</button>
+                <a href="{{ path('app_plateforme_zones_transport', {pays: pays.id}) }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

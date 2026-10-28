@@ -1,0 +1,27 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}{{ pays.id ? 'Modifier ' ~ pays.nom : 'Ajouter un pays' }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_pays') }}">Pays</a></li><li class="breadcrumb-item active">{{ pays.id ? pays.nom : 'Nouveau' }}</li>{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 860px;">
+    <div class="card-body">
+        {{ form_start(form) }}
+            <div class="row">
+                <div class="col-md-6">{{ form_row(form.codeIso) }}</div>
+                <div class="col-md-6">{{ form_row(form.nom) }}</div>
+                <div class="col-md-6">{{ form_row(form.devise) }}</div>
+                <div class="col-md-6">{{ form_row(form.langue) }}</div>
+                <div class="col-md-6">{{ form_row(form.fuseauHoraire) }}</div>
+                <div class="col-md-6">{{ form_row(form.indicatifTelephone) }}</div>
+                <div class="col-md-6">{{ form_row(form.organismeSocial) }}</div>
+            </div>
+            <div class="form-check form-switch my-3">{{ form_widget(form.actif) }}{{ form_label(form.actif) }}</div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary">Enregistrer</button>
+                <a href="{{ path('app_plateforme_pays') }}" class="btn btn-light-subtle">Annuler</a>
+            </div>
+        {{ form_end(form) }}
+    </div>
+</div>
+{% endblock %}

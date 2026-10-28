@@ -1,0 +1,171 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = societe.deviseEffective %}
+{% set libelle_mois = mois|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize %}
+{% set code_mois = mois|date('Y-m') %}
+
+{% block title %}Paie — {{ libelle_mois }}{% endblock %}
+{% block page_title %}Paie du mois{% endblock %}
+{% block page_subtitle %}{{ societe.raisonSociale }} · éléments fixes repris automatiquement, éléments variables saisis chaque mois.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Paie</li>{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group">
+        <a href="{{ path('app_paie', {mois: periodePrecedente|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois précédent"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light-subtle fw-semibold" style="min-width: 160px; pointer-events: none;">{{ libelle_mois }}</span>
+        <a href="{{ path('app_paie', {mois: periodeSuivante|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois suivant"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    {% if periode and not periode.cloturee and is_granted('paie.preparer') %}
+        <a href="{{ path('app_paie_import', {mois: code_mois}) }}" class="btn btn-light-subtle" title="Facultatif"><i class="bi bi-file-earmark-spreadsheet me-1 text-success"></i>Importer un rapport (facultatif)</a>
+    {% endif %}
+    {% if periode %}
+        <a href="{{ path('app_paie_rapports', {mois: code_mois}) }}" class="btn btn-light-subtle" target="_blank"><i class="bi bi-printer me-1"></i>Rapports</a>
+    {% endif %}
+    {% if periode and not periode.cloturee %}
+        <a href="{{ path('app_paie_validation', {mois: code_mois}) }}" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Valider la paie</a>
+    {% elseif periode and is_granted('paie.cloturer') %}
+        <form method="post" action="{{ path('app_paie_rouvrir', {mois: code_mois}) }}" data-confirm="Rouvrir la paie — {{ libelle_mois }} ? Elle pourra de nouveau être modifiée.">
+            <input type="hidden" name="_token" value="{{ csrf_token('periode-' ~ code_mois) }}">
+            <button class="btn btn-light-subtle"><i class="bi bi-unlock me-1"></i>Rouvrir</button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+
+{% block content %}
+{% if not periode %}
+    <div class="card">
+        <div class="empty-state">
+            <i class="bi bi-calendar2-plus"></i>
+            La paie — <strong>{{ libelle_mois }}</strong> n'est pas encore ouverte.
+            <div class="small mt-1">{{ lignes|length }} salarié(s) présent(s) sur le mois.</div>
+            {% if is_granted('paie.preparer') %}
+                <form method="post" action="{{ path('app_paie_ouvrir', {mois: code_mois}) }}" class="mt-3">
+                    <input type="hidden" name="_token" value="{{ csrf_token('periode-' ~ code_mois) }}">
+                    <button class="btn btn-primary"><i class="bi bi-play-fill me-1"></i>Ouvrir la paie — {{ libelle_mois }}</button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+{% else %}
+    {% if periode.cloturee %}
+        <div class="alert alert-secondary d-flex gap-2"><i class="bi bi-lock"></i>
+            <div>Paie validée le {{ periode.clotureeLe|date('d/m/Y à H:i') }}{% if periode.clotureePar %} par {{ periode.clotureePar.nomComplet }}{% endif %} : consultation seule.</div>
+        </div>
+    {% endif %}
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Salariés payés</div><div class="stat-value">{{ lignes|length }}</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Total des gains</div><div class="stat-value">{{ m.montant(totaux.gains, devise) }}</div>
+            <div class="small text-body-secondary">Retenues, impôt et cotisations : {{ m.montant(totaux.retenues, devise) }}</div>
+        </div></div></div>
+        <div class="col-md-4"><div class="card h-100 border-primary-subtle"><div class="card-body">
+            <div class="stat-label">Total net à payer</div><div class="stat-value text-primary">{{ m.montant(totaux.net, devise) }}</div>
+            <div class="small text-body-secondary">Charges patronales : {{ m.montant(totaux.patronal, devise) }}</div>
+        </div></div></div>
+    </div>
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Détail par salarié</h2>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="ouvrir"><i class="bi bi-arrows-expand me-1"></i>Tout déplier</button>
+                <button type="button" class="btn btn-sm btn-light-subtle" data-details-tous="fermer"><i class="bi bi-arrows-collapse me-1"></i>Tout replier</button>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table paie-table mb-0" data-controller="datatable">
+                <thead><tr><th style="width: 34px;"></th><th>Salarié</th><th>Fonction</th><th class="text-end">Gains</th><th class="text-end">Retenues</th><th class="text-end">Net à payer</th><th class="text-center">Variables</th><th></th></tr></thead>
+                <tbody>
+                {% for l in lignes %}
+                    {% set a = l.affectation %}
+                    <tr class="paie-salarie" data-detail="detail-{{ a.id }}">
+                        <td><button type="button" class="btn btn-sm btn-link p-0 text-body-secondary" data-detail-toggle="detail-{{ a.id }}" aria-expanded="true" aria-label="Afficher / masquer le détail"><i class="bi bi-chevron-down"></i></button></td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                {{ m.avatar(a.salarie, 'avatar-sm') }}
+                                <div>
+                                    <div class="fw-semibold">{{ a.salarie.nomComplet }}</div>
+                                    <div class="small text-body-secondary font-monospace">{{ a.matricule }}
+                                        {% if a.dateEntree > periode.debut %}<span class="badge text-bg-info badge-soft">Entré le {{ a.dateEntree|date('d/m') }}</span>{% endif %}
+                                        {% if a.dateSortie and a.dateSortie <= periode.fin %}<span class="badge text-bg-warning badge-soft">Sorti le {{ a.dateSortie|date('d/m') }}</span>{% endif %}
+                                        {% if l.recap.soldeToutCompte %}<span class="badge {{ l.recap.soldeArrete ? 'text-bg-success' : 'text-bg-warning' }} badge-soft">Solde de tout compte{{ l.recap.soldeArrete ? ' arrêté' : ' à arrêter' }}</span>{% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="small">{{ a.poste }}</td>
+                        <td class="text-end" data-order="{{ l.recap.totalGains }}">{{ m.montant(l.recap.totalGains, devise) }}</td>
+                        <td class="text-end text-danger" data-order="{{ l.recap.retenuesTotales }}">{{ l.recap.retenuesTotales > 0 ? '− ' }}{{ m.montant(l.recap.retenuesTotales, devise) }}</td>
+                        <td class="text-end fw-semibold" data-order="{{ l.recap.net }}">{{ m.montant(l.recap.net, devise) }}</td>
+                        <td class="text-center" data-order="{{ l.recap.nbVariables }}">
+                            {% if l.recap.nbVariables %}<span class="badge text-bg-primary rounded-pill">{{ l.recap.nbVariables }}</span>{% else %}<span class="text-body-secondary">—</span>{% endif %}
+                        </td>
+                        <td class="text-end text-nowrap">
+                            <a href="{{ path('app_paie_rapport', {mois: code_mois, id: a.id}) }}" class="btn btn-sm btn-light-subtle" target="_blank" title="Rapport individuel"><i class="bi bi-printer"></i></a>
+                            <a href="{{ path('app_paie_salarie', {mois: code_mois, id: a.id}) }}" class="btn btn-sm {{ periode.cloturee or not is_granted('paie.preparer') ? 'btn-light-subtle' : 'btn-primary' }}">
+                                {% if periode.cloturee or not is_granted('paie.preparer') %}<i class="bi bi-eye me-1"></i>Ouvrir{% else %}<i class="bi bi-pencil me-1"></i>Saisir{% endif %}
+                            </a>
+                        </td>
+                    </tr>
+                    <tr class="paie-detail" id="detail-{{ a.id }}">
+                        <td></td>
+                        <td colspan="7" class="pt-0">
+                            <table class="table table-sm paie-lignes mb-1">
+                                <thead><tr><th style="width: 80px;">Code</th><th>Élément</th><th style="width: 130px;">Nature</th><th class="text-end" style="width: 150px;">Base × taux</th><th class="text-end" style="width: 140px;">Gain</th><th class="text-end" style="width: 140px;">Retenue</th></tr></thead>
+                                <tbody>
+                                {% for e in l.recap.lignes %}
+                                    <tr class="{{ e.origine in ['ajuste', 'variable'] ? 'paie-ligne-variable' }}">
+                                        <td class="font-monospace">{{ e.code ?: '—' }}</td>
+                                        <td>
+                                            {{ e.libelle }}
+                                            {% if e.montantHabituel is not null %}<span class="text-body-secondary"> · habituellement {{ m.montant(e.montantHabituel, devise) }}</span>{% endif %}
+                                            {% if e.element and e.element.commentaire %}<span class="text-body-secondary"> · {{ e.element.commentaire }}</span>{% endif %}
+                                        </td>
+                                        <td>
+                                            {% if e.origine == 'fixe' %}<span class="badge text-bg-light border badge-soft">Fixe</span>
+                                            {% elseif e.origine == 'calcule' %}<span class="badge text-bg-success badge-soft">Calculé</span>
+                                            {% elseif e.origine == 'ajuste' %}<span class="badge text-bg-warning badge-soft">Ajusté ce mois</span>
+                                            {% else %}<span class="badge text-bg-primary badge-soft">Variable</span>{% endif %}
+                                        </td>
+                                        <td class="text-end text-body-secondary">{% if e.base is not null and e.taux is not null %}{{ e.base + 0 }} × {{ e.taux + 0 }}{% endif %}</td>
+                                        <td class="text-end">{% if e.gain %}{{ m.montant(e.montant, devise) }}{% endif %}</td>
+                                        <td class="text-end text-danger">{% if not e.gain %}{{ m.montant(e.montant, devise) }}{% endif %}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr><td colspan="6" class="text-body-secondary">Aucun élément (pas de rémunération enregistrée).</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                            {% set c = l.recap.calcul %}
+                            <div class="d-flex flex-wrap gap-3 small mb-2 px-1">
+                                <span><span class="text-body-secondary">Jours :</span> <strong>{{ l.recap.jours + 0 }}</strong>/{{ l.recap.joursBase }}</span>
+                                {% if c.parts is not null %}<span><span class="text-body-secondary">Parts :</span> <strong>{{ c.parts + 0 }}</strong></span>{% endif %}
+                                <span><span class="text-body-secondary">Ancienneté :</span> <strong>{{ c.anciennete.annees }} an(s)</strong>{% if c.anciennete.applicable %} · {{ c.anciennete.taux + 0 }} %{% endif %}</span>
+                                <span><span class="text-body-secondary">Salaire brut :</span> <strong>{{ m.montant(c.brut, devise) }}</strong></span>
+                                <span><span class="text-body-secondary">Brut imposable :</span> <strong class="text-primary">{{ m.montant(c.brutImposable, devise) }}</strong></span>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="8"><div class="empty-state"><i class="bi bi-people"></i>Aucun salarié présent sur ce mois.</div></td></tr>
+                {% endfor %}
+                </tbody>
+                {% if lignes|length > 1 %}
+                    <tfoot>
+                        <tr class="fw-bold"><td></td><td colspan="2">Total société ({{ lignes|length }} salariés)</td>
+                            <td class="text-end">{{ m.montant(totaux.gains, devise) }}</td>
+                            <td class="text-end text-danger">{{ totaux.retenues > 0 ? '− ' }}{{ m.montant(totaux.retenues, devise) }}</td>
+                            <td class="text-end text-primary">{{ m.montant(totaux.net, devise) }}</td>
+                            <td colspan="2"></td></tr>
+                    </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+{% endif %}
+{% endblock %}

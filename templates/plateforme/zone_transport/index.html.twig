@@ -1,0 +1,36 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Transport — {{ pays.nom }}{% endblock %}
+{% block page_title %}{{ pays.drapeau }} Indemnité de transport — {{ pays.nom }}{% endblock %}
+{% block page_subtitle %}Indemnité mensuelle selon la ville de résidence du salarié, versée au prorata des jours travaillés.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_pays') }}">Pays</a></li><li class="breadcrumb-item active">Transport {{ pays.nom }}</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_zone_transport_nouvelle', {pays: pays.id}) }}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Nouvelle zone</a>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width: 900px;">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr><th>Ville / zone de résidence</th><th class="text-end">Indemnité mensuelle</th><th>Rubrique</th><th class="text-end">Salariés</th><th></th></tr></thead>
+            <tbody>
+            {% for z in zones %}
+                <tr class="{{ not z.actif ? 'text-body-secondary' }}">
+                    <td class="fw-medium">{{ z.libelle }}{% if not z.actif %} <span class="badge text-bg-secondary badge-soft">Inactive</span>{% endif %}</td>
+                    <td class="text-end">{{ z.montant|format_currency(pays.devise, {}, 'fr') }}</td>
+                    <td class="small"><span class="font-monospace">{{ z.rubrique.code }}</span> {{ z.rubrique.libelle }}</td>
+                    <td class="text-end">{{ salaries[z.id] ?? 0 }}</td>
+                    <td class="text-end"><a href="{{ path('app_plateforme_zone_transport_modifier', {pays: pays.id, id: z.id}) }}" class="btn btn-sm btn-light-subtle">Modifier</a></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="5"><div class="empty-state"><i class="bi bi-bus-front"></i>Aucune zone pour ce pays : l'indemnité de transport se saisit comme un avantage sur chaque salarié.</div></td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="card-body border-top small text-body-secondary">
+        Dès qu'une zone existe pour le pays, la zone de résidence se choisit sur la fiche de chaque salarié et son indemnité remplace
+        l'avantage saisi à la main sur la même rubrique. Une modification de montant s'applique aux paies non encore validées.
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends 'base.html.twig' %}
+{% import 'etat/_macros.html.twig' as e %}
+
+{% block title %}Livre de paie — {{ libellePlage }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+{% block stylesheets %}{% include 'etat/_paysage.html.twig' %}{% endblock %}
+
+{% set groupes = {identite: '', gains: 'Rémunération versée', retenues: 'Retenues salariales', net: '', patronal: 'Part employeur', cout: ''} %}
+
+{% block body %}
+{% include 'etat/_barre.html.twig' with {titre: 'Livre de paie — ' ~ libellePlage, provisoire: livre.provisoire, route: 'app_etat_livre'} %}
+
+<section class="rapport-page paysage">
+    {% include 'bulletin/_entete.html.twig' with {societe: societe, periode: libellePlage, titre: 'LIVRE DE PAIE'} %}
+    {% if livre.provisoire %}<div class="rapport-filigrane">DOCUMENT PROVISOIRE — CERTAINS MOIS NE SONT PAS ENCORE VALIDÉS</div>{% endif %}
+
+    {% if livre.nbBulletins == 0 %}
+        <p class="text-center text-body-secondary my-5">Aucun bulletin sur la période (paie non ouverte).</p>
+    {% else %}
+        {# Bandeau des groupes de colonnes, comme le livre de paie de la v1. #}
+        {% set bandeau = [] %}
+        {% for c in livre.colonnes %}
+            {% if bandeau is empty or (bandeau|last).groupe != c.groupe %}
+                {% set bandeau = bandeau|merge([{groupe: c.groupe, nombre: 1}]) %}
+            {% else %}
+                {% set dernier = bandeau|last %}
+                {% set bandeau = bandeau|slice(0, bandeau|length - 1)|merge([{groupe: dernier.groupe, nombre: dernier.nombre + 1}]) %}
+            {% endif %}
+        {% endfor %}
+
+        <table class="rapport-lignes etat-tableau">
+            <thead>
+                <tr class="etat-bandeau">
+                    <th colspan="2" class="g-identite">Salarié</th>
+                    {% for b in bandeau %}
+                        <th colspan="{{ b.nombre }}" class="g-{{ b.groupe }}">{{ groupes[b.groupe] }}</th>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <th>Matricule</th>
+                    <th>Nom et prénoms</th>
+                    {% for c in livre.colonnes %}
+                        <th class="num">{{ c.libelle }}{% if c.code %}<br><small>{{ c.code }}</small>{% endif %}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+            {% for mois in livre.mois %}
+                {% if livre.mois|length > 1 %}
+                    <tr class="etat-mois"><td colspan="{{ livre.colonnes|length + 2 }}">{{ mois.periode.libelle }}{% if mois.provisoire %} — provisoire{% endif %}</td></tr>
+                {% endif %}
+                {% for l in mois.lignes %}
+                    <tr>
+                        <td>{{ l.affectation.matricule }}</td>
+                        <td class="etat-nom">{{ l.affectation.salarie.nomComplet }}</td>
+                        {% for c in livre.colonnes %}
+                            <td class="num{{ c.groupe == 'net' ? ' etat-net' }}">{{ c.cle == 'jours' ? (l.valeurs.jours + 0) : e.nombre(l.valeurs[c.cle] ?? null) }}</td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                {% if livre.mois|length > 1 %}
+                    <tr class="etat-sous-total">
+                        <td></td><td>Total {{ mois.periode.libelle|lower }} ({{ mois.lignes|length }})</td>
+                        {% for c in livre.colonnes %}<td class="num">{{ c.somme ? e.nombre(mois.total[c.cle] ?? null) }}</td>{% endfor %}
+                    </tr>
+                {% endif %}
+            {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td></td><td>TOTAL GÉNÉRAL</td>
+                    {% for c in livre.colonnes %}<td class="num">{{ c.somme ? e.nombre(livre.total[c.cle] ?? null, '0') }}</td>{% endfor %}
+                </tr>
+            </tfoot>
+        </table>
+
+        <p class="mt-2"><strong>Effectif : {{ livre.effectif }} personne(s)</strong>{% if livre.mois|length > 1 %} · {{ livre.nbBulletins }} bulletin(s) sur {{ livre.mois|length }} mois{% endif %} · montants en {{ devise }}</p>
+    {% endif %}
+
+    <p class="rapport-note">Édité le {{ 'now'|date('d/m/Y à H:i') }}. Coût employeur = total des gains + charges patronales.</p>
+</section>
+{% endblock %}

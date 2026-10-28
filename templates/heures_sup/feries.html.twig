@@ -1,0 +1,95 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Jours fériés {{ annee }}{% endblock %}
+{% block page_title %}Jours fériés {{ annee }}{% endblock %}
+{% block page_subtitle %}{{ societe.raisonSociale }} · jours fériés {{ societe.paysPaie.drapeau }} {{ societe.paysPaie.nom }} et jours propres à la société, utilisés pour le calcul des heures supplémentaires.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_heures_sup') }}">Heures supplémentaires</a></li><li class="breadcrumb-item active">Jours fériés</li>{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group">
+        <a href="{{ path('app_heures_sup_feries', {annee: annee - 1}) }}" class="btn btn-light-subtle"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light-subtle fw-semibold" style="pointer-events: none;">{{ annee }}</span>
+        <a href="{{ path('app_heures_sup_feries', {annee: annee + 1}) }}" class="btn btn-light-subtle"><i class="bi bi-chevron-right"></i></a>
+    </div>
+{% endblock %}
+
+{% macro champs(j, prefixe) %}
+    <div class="row g-2">
+        <div class="col-sm-4"><label class="form-label small" for="{{ prefixe }}-date">Date</label><input type="date" id="{{ prefixe }}-date" name="date" class="form-control form-control-sm" value="{{ j ? j.date|date('Y-m-d') }}" required></div>
+        <div class="col-sm-8"><label class="form-label small" for="{{ prefixe }}-libelle">Libellé</label><input id="{{ prefixe }}-libelle" name="libelle" class="form-control form-control-sm" maxlength="120" value="{{ j ? j.libelle }}" required></div>
+    </div>
+    <div class="d-flex flex-wrap gap-3 mt-2 small">
+        <label class="form-check"><input type="checkbox" class="form-check-input" name="chomePaye" value="1"{{ not j or j.chomePaye ? ' checked' }}> Chômé et payé</label>
+        <label class="form-check"><input type="checkbox" class="form-check-input" name="veille" value="1"{{ j and j.veille ? ' checked' }}> Veille incluse</label>
+        <label class="form-check"><input type="checkbox" class="form-check-input" name="lendemain" value="1"{{ j and j.lendemain ? ' checked' }}> Lendemain inclus</label>
+    </div>
+{% endmacro %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Date</th><th>Libellé</th><th>Nature</th><th>Portée</th><th></th></tr></thead>
+                    <tbody>
+                    {% for j in jours %}
+                        {% set modifiable = j.national ? peutNational : peutSociete %}
+                        <tr>
+                            <td class="text-nowrap">{{ j.date|format_date(pattern: 'EEE d MMMM', locale: 'fr') }}</td>
+                            <td>{{ j.libelle }}{% if j.aConfirmer %} <span class="badge text-bg-warning badge-soft" title="Date estimée (calendrier lunaire) : à confirmer à l'annonce officielle">à confirmer</span>{% endif %}</td>
+                            <td class="small">{{ j.chomePaye ? 'Chômé et payé' : 'Non chômé' }}{{ j.veille ? ' · veille' }}{{ j.lendemain ? ' · lendemain' }}</td>
+                            <td class="small">{% if j.national %}<span class="badge text-bg-light border badge-soft">National</span>{% else %}<span class="badge text-bg-primary badge-soft">Société</span>{% endif %}</td>
+                            <td class="text-end text-nowrap">
+                                {% if modifiable %}
+                                    <button type="button" class="btn btn-sm btn-light-subtle" data-bs-toggle="modal" data-bs-target="#ferie-{{ j.id }}">Modifier</button>
+                                    <form method="post" action="{{ path('app_heures_sup_ferie_supprimer', {id: j.id}) }}" class="d-inline" data-confirm="Supprimer « {{ j.libelle }} » ?">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+                                        <button class="btn btn-sm btn-light-subtle text-danger" title="Supprimer"><i class="bi bi-trash"></i></button>
+                                    </form>
+                                    <div class="modal fade" id="ferie-{{ j.id }}" tabindex="-1"><div class="modal-dialog"><div class="modal-content text-start">
+                                        <form method="post" action="{{ path('app_heures_sup_ferie_enregistrer', {id: j.id}) }}">
+                                            <div class="modal-header"><h5 class="modal-title">Modifier le jour férié</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                            <div class="modal-body text-wrap">{{ _self.champs(j, 'f' ~ j.id) }}<input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}"></div>
+                                            <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+                                        </form>
+                                    </div></div></div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="5"><div class="empty-state"><i class="bi bi-calendar-event"></i>Aucun jour férié en {{ annee }}.{% if peutNational %} Chargez le calendrier : <code>php bin/console app:jours-feries:charger {{ societe.paysPaie.codeIso }} {{ annee }}</code>{% endif %}</div></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-body border-top small text-body-secondary">
+                Les jours nationaux valent pour toutes les sociétés du pays : ils sont tenus par la plateforme (super-administrateur).
+                Une société peut ajouter ses propres jours (journée offerte, fête locale). Tout changement s'applique immédiatement aux calculs d'heures supplémentaires
+                (à reporter de nouveau dans la paie si c'était déjà fait).
+            </div>
+        </div>
+    </div>
+    {% if peutSociete or peutNational %}
+        <div class="col-xl-4">
+            <form class="card" method="post" action="{{ path('app_heures_sup_ferie_enregistrer') }}">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-plus-lg me-2"></i>Ajouter un jour férié</h2></div>
+                <div class="card-body">
+                    {{ _self.champs(null, 'nouveau') }}
+                    {% if peutNational %}
+                        <div class="mt-3">
+                            <label class="form-label small" for="nouveau-portee">Portée</label>
+                            <select id="nouveau-portee" name="national" class="form-select form-select-sm">
+                                <option value="0">Propre à {{ societe.raisonSociale }}</option>
+                                <option value="1">National — toutes les sociétés {{ societe.paysPaie.nom }}</option>
+                            </select>
+                        </div>
+                    {% endif %}
+                    <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+                </div>
+                <div class="card-footer"><button class="btn btn-primary">Ajouter</button></div>
+            </form>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

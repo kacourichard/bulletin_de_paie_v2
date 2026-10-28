@@ -1,0 +1,87 @@
+{% extends 'base.html.twig' %}
+{% import 'etat/_macros.html.twig' as e %}
+
+{% set s = affectation.salarie %}
+{% set societe = affectation.societe %}
+
+{% block title %}Fiche individuelle {{ annee }} — {{ s.nomComplet }}{% endblock %}
+{% block body_class %}rapport-paie{% endblock %}
+{% block stylesheets %}{% include 'etat/_paysage.html.twig' %}{% endblock %}
+
+{% block body %}
+<div class="rapport-barre no-print">
+    <div class="d-flex align-items-center gap-2">
+        <a href="{{ path('app_etat_fiche', {id: affectation.id, annee: annee - 1}) }}" class="btn btn-light btn-sm border" title="Année précédente"><i class="bi bi-chevron-left"></i></a>
+        <strong>Fiche individuelle {{ annee }} — {{ s.nomComplet }}</strong>
+        <a href="{{ path('app_etat_fiche', {id: affectation.id, annee: annee + 1}) }}" class="btn btn-light btn-sm border" title="Année suivante"><i class="bi bi-chevron-right"></i></a>
+        {% if fiche.provisoires is not empty %}<span class="badge text-bg-warning">Contient des mois non validés</span>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimer / PDF</button>
+        {% if is_granted('etat.exporter') %}
+            <a href="{{ path('app_etat_fiche', {id: affectation.id, annee: annee, format: 'xlsx'}) }}" class="btn btn-light btn-sm border"><i class="bi bi-file-earmark-excel me-1 text-success"></i>Excel</a>
+        {% endif %}
+        <button type="button" class="btn btn-light btn-sm border" onclick="window.close()">Fermer</button>
+    </div>
+</div>
+
+<section class="rapport-page paysage">
+    {% include 'bulletin/_entete.html.twig' with {societe: societe, periode: 'Année ' ~ annee, titre: 'FICHE INDIVIDUELLE'} %}
+    {% if fiche.provisoires is not empty %}<div class="rapport-filigrane">DOCUMENT PROVISOIRE — MOIS NON VALIDÉS : {% for m in fiche.provisoires %}{{ fiche.mois[m]|format_date(pattern: 'MMMM', locale: 'fr') }}{{ not loop.last ? ', ' }}{% endfor %}</div>{% endif %}
+
+    <div class="rapport-identite">
+        <dl>
+            <dt>Matricule</dt><dd>{{ affectation.matricule }}</dd>
+            <dt>Nom et prénoms</dt><dd><strong>{{ s.nomComplet }}</strong></dd>
+            <dt>Fonction</dt><dd>{{ affectation.poste ?: '—' }}</dd>
+        </dl>
+        <dl>
+            <dt>Date d'embauche</dt><dd>{{ affectation.dateEntree|date('d/m/Y') }}{% if affectation.dateSortie %} · sortie le {{ affectation.dateSortie|date('d/m/Y') }}{% endif %}</dd>
+            <dt>Nationalité</dt><dd>{{ s.nationaliteNom ?: '—' }}</dd>
+            <dt>N° {{ societe.pays.organismeSocial ?: 'sécurité sociale' }}</dt><dd>{{ s.numeroSecuriteSociale ?: '—' }}</dd>
+        </dl>
+    </div>
+
+    {% if fiche.presents is empty %}
+        <p class="text-center text-body-secondary my-5">Aucune paie en {{ annee }} pour ce salarié (paie non ouverte ou salarié absent de la société).</p>
+    {% else %}
+        <table class="rapport-lignes etat-tableau">
+            <thead>
+                <tr>
+                    <th>Code</th><th>Libellé</th>
+                    {% for m, mois in fiche.mois %}<th class="num">{{ mois|format_date(pattern: 'MMM', locale: 'fr')|capitalize }}</th>{% endfor %}
+                    <th class="num">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for section in fiche.sections %}
+                <tr class="etat-mois"><td colspan="15">{{ section.titre }}</td></tr>
+                {% for l in section.lignes %}
+                    <tr>
+                        <td>{{ l.code }}</td>
+                        <td class="etat-nom">{{ l.libelle }}</td>
+                        {% for m in 1..12 %}<td class="num">{{ e.nombre(l.mois[m] ?? null) }}</td>{% endfor %}
+                        <td class="num fw-semibold">{{ e.nombre(l.total) }}</td>
+                    </tr>
+                {% endfor %}
+                <tr class="etat-sous-total">
+                    <td></td><td>Total {{ section.titre|lower }}</td>
+                    {% for m in 1..12 %}<td class="num">{{ e.nombre(section.total.mois[m] ?? null) }}</td>{% endfor %}
+                    <td class="num">{{ e.nombre(section.total.total) }}</td>
+                </tr>
+            {% endfor %}
+                <tr class="etat-mois"><td colspan="15">Synthèse</td></tr>
+                {% for l in fiche.synthese %}
+                    <tr class="{{ l.important ? 'etat-sous-total' }}">
+                        <td></td><td>{{ l.libelle }}</td>
+                        {% for m in 1..12 %}<td class="num{{ l.important ? ' etat-net' }}">{{ fiche.presents[m] is defined ? e.nombre(l.mois[m], '0') : '' }}</td>{% endfor %}
+                        <td class="num fw-semibold">{{ e.nombre(l.total, '0') }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <p class="rapport-note">Édité le {{ 'now'|date('d/m/Y à H:i') }} · montants en {{ societe.deviseEffective }}.</p>
+</section>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% block title %}Transférer vers une autre société{% endblock %}
+{% block page_subtitle %}{{ affectation.salarie.nomComplet }} · actuellement chez <strong>{{ affectation.societe.raisonSociale }}</strong>{% endblock %}
+{% block breadcrumb %}{% include 'salarie/_fil.html.twig' with {etape: 'Transfert'} %}{% endblock %}
+
+{% block content %}
+{% if destinations is empty %}
+    <div class="card"><div class="empty-state">
+        <i class="bi bi-buildings"></i>
+        Aucune société de destination disponible.<br>
+        <span class="small">Le transfert se fait vers une autre société de la succursale <strong>{{ affectation.societe.succursale.nom }}</strong>, où vous avez le droit d'enregistrer des salariés.</span>
+    </div></div>
+{% else %}
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body">
+                {{ form_start(form, {attr: {'data-confirm': 'Confirmer le transfert ?'}}) }}
+                    {{ form_errors(form) }}
+                    <div class="row">
+                        <div class="col-md-8">{{ form_row(form.societe) }}</div>
+                        <div class="col-md-4">{{ form_row(form.date) }}</div>
+                        <div class="col-md-4">{{ form_row(form.matricule) }}</div>
+                        <div class="col-md-4">{{ form_row(form.poste) }}</div>
+                        <div class="col-md-4">{{ form_row(form.typeContrat) }}</div>
+                        <div class="col-md-6">{{ form_row(form.salaireBase) }}</div>
+                        <div class="col-md-6">{{ form_row(form.sursalaire) }}</div>
+                    </div>
+                    <div class="form-check form-switch mb-3">{{ form_widget(form.reprendreAvantages) }}{{ form_label(form.reprendreAvantages) }}</div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary"><i class="bi bi-arrow-left-right me-1"></i>Transférer</button>
+                        <a href="{{ path('app_salarie_voir', {id: affectation.id}) }}" class="btn btn-light-subtle">Annuler</a>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Ce qui va se passer</h2></div>
+            <div class="card-body small">
+                <ol class="ps-3 mb-0">
+                    <li class="mb-2">L'affectation chez <strong>{{ affectation.societe.raisonSociale }}</strong> se termine la veille du transfert (motif « Transfert »), avec tout son historique.</li>
+                    <li class="mb-2">Une nouvelle affectation commence dans la société de destination, avec son matricule et la rémunération saisie (dans la devise de cette société).</li>
+                    <li>Les avantages en cours peuvent être repris. Le parcours complet reste visible sur la fiche du salarié.</li>
+                </ol>
+                {% set remu = affectation.remunerationA %}
+                {% if remu %}
+                    <hr>
+                    <div class="text-body-secondary">Rémunération actuelle : {{ m.montant(remu.salaireTotal, affectation.societe.deviseEffective) }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

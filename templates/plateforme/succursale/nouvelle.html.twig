@@ -1,0 +1,38 @@
+{% extends 'layout/app.html.twig' %}
+
+{% block title %}Nouvelle succursale{% endblock %}
+{% block page_subtitle %}Créez la succursale et désignez son administrateur : il créera ensuite ses sociétés et leurs équipes.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_succursales') }}">Succursales</a></li><li class="breadcrumb-item active">Nouvelle</li>{% endblock %}
+
+{% block content %}
+{{ form_start(form) }}
+{{ form_errors(form) }}
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-diagram-3 me-1 text-primary"></i>Succursale</h2></div>
+            <div class="card-body">
+                {{ form_row(form.nom) }}
+                {{ form_row(form.description) }}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-shield-lock me-1 text-danger"></i>Administrateur</h2></div>
+            <div class="card-body">
+                {{ form_row(form.administrateur.email) }}
+                <div class="row">
+                    <div class="col-md-6">{{ form_row(form.administrateur.prenoms) }}</div>
+                    <div class="col-md-6">{{ form_row(form.administrateur.nom) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="d-flex gap-2 mt-3">
+    <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Créer la succursale</button>
+    <a href="{{ path('app_plateforme_succursales') }}" class="btn btn-light-subtle">Annuler</a>
+</div>
+{{ form_end(form) }}
+{% endblock %}

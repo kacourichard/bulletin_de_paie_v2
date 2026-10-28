@@ -1,0 +1,424 @@
+{% extends 'layout/app.html.twig' %}
+{% import 'salarie/_macros.html.twig' as m %}
+
+{% set devise = societe.deviseEffective %}
+{% set voir_salaires = is_granted('salarie.remuneration') %}
+{% set modifiable = affectation.enCours %}
+{% set remu = affectation.enCours ? affectation.remunerationA : affectation.remunerationA(affectation.dateSortie) %}
+{% set date_ref = affectation.enCours ? aujourdhui : affectation.dateSortie %}
+{% set suite = salarie.affectations|filter(x => x.provenance and x.provenance.id == affectation.id)|first %}
+
+{% block title %}{{ salarie.nomComplet }}{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item"><a href="{{ path('app_salarie') }}">Salariés</a></li><li class="breadcrumb-item active">{{ salarie.nomComplet }}</li>{% endblock %}
+
+{% block page_header %}
+<div class="card mb-3">
+    <div class="card-body d-flex flex-wrap gap-3 align-items-center">
+        {{ m.avatar(salarie, 'avatar-lg') }}
+        <div class="flex-grow-1">
+            <h1 class="page-title mb-1">{{ salarie.nomComplet }}</h1>
+            <div class="d-flex flex-wrap gap-2 align-items-center small text-body-secondary">
+                <span class="font-monospace">{{ affectation.matricule }}</span>
+                {% if affectation.poste %}<span>·</span><span>{{ affectation.poste }}</span>{% endif %}
+                {% if affectation.service %}<span>·</span><span>{{ affectation.service }}</span>{% endif %}
+                <span>·</span>{{ m.contrat(affectation) }}
+                <span>·</span>{{ m.statut(affectation) }}
+            </div>
+        </div>
+        {% if is_granted('etat.voir') %}
+            <a href="{{ path('app_etat_fiche', {id: affectation.id}) }}" target="_blank" class="btn btn-light-subtle"><i class="bi bi-person-lines-fill me-1"></i>Fiche individuelle</a>
+        {% endif %}
+        {% if modifiable %}
+            <div class="d-flex flex-wrap gap-2">
+                {% if is_granted('salarie.modifier') %}
+                    <a href="{{ path('app_salarie_modifier', {id: affectation.id}) }}" class="btn btn-light-subtle"><i class="bi bi-pencil me-1"></i>Modifier</a>
+                {% endif %}
+                {% if voir_salaires %}
+                    <a href="{{ path('app_salarie_revaloriser', {id: affectation.id}) }}" class="btn btn-primary"><i class="bi bi-graph-up-arrow me-1"></i>Revaloriser</a>
+                {% endif %}
+                {% if is_granted('salarie.transferer') or is_granted('salarie.supprimer') or voir_salaires %}
+                    <div class="dropdown">
+                        <button class="btn btn-light-subtle btn-icon" data-bs-toggle="dropdown" aria-label="Plus d'actions"><i class="bi bi-three-dots-vertical"></i></button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                            {% if voir_salaires and is_granted('salarie.modifier') %}<li><a class="dropdown-item" href="{{ path('app_salarie_changer_poste', {id: affectation.id}) }}"><i class="bi bi-briefcase me-2"></i>Changer de poste</a></li>{% endif %}
+                            {% if voir_salaires %}<li><a class="dropdown-item" href="{{ path('app_salarie_avantage_ajouter', {id: affectation.id}) }}"><i class="bi bi-gift me-2"></i>Ajouter un avantage</a></li>{% endif %}
+                            {% if is_granted('salarie.transferer') %}<li><a class="dropdown-item" href="{{ path('app_salarie_transferer', {id: affectation.id}) }}"><i class="bi bi-arrow-left-right me-2"></i>Transférer vers une autre société</a></li>{% endif %}
+                            {% if is_granted('salarie.supprimer') %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="{{ path('app_salarie_sortie', {id: affectation.id}) }}"><i class="bi bi-box-arrow-right me-2"></i>Enregistrer une sortie</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if not modifiable %}
+    <div class="alert alert-secondary d-flex gap-2 align-items-start">
+        <i class="bi bi-lock"></i>
+        <div>
+            Sortie de la société le <strong>{{ affectation.dateSortie|date('d/m/Y') }}</strong> — {{ affectation.motifSortie.libelle }}{% if affectation.commentaireSortie %} ({{ affectation.commentaireSortie }}){% endif %}.
+            {% if suite %}Poursuit chez <strong>{{ suite.societe.pays.drapeau }} {{ suite.societe.raisonSociale }}</strong> depuis le {{ suite.dateEntree|date('d/m/Y') }}.{% endif %}
+            Le dossier est en lecture seule.
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if voir_salaires %}
+    {% set total_avantages = affectation.totalAvantagesA(date_ref) %}
+    <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Salaire de base</div>
+            <div class="stat-value">{{ m.montant(remu ? remu.salaireBase : null, devise) }}</div>
+            {% if remu %}<div class="small text-body-secondary">depuis le {{ remu.dateEffet|date('d/m/Y') }}</div>{% endif %}
+        </div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Sursalaire</div>
+            <div class="stat-value">{{ m.montant(remu ? remu.sursalaire : null, devise) }}</div>
+        </div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100"><div class="card-body">
+            <div class="stat-label">Avantages mensuels</div>
+            <div class="stat-value">{{ m.montant(total_avantages, devise) }}</div>
+            <div class="small text-body-secondary">{{ affectation.avantagesA(date_ref)|length }} en vigueur</div>
+        </div></div></div>
+        <div class="col-sm-6 col-xl-3"><div class="card h-100 border-primary-subtle"><div class="card-body">
+            <div class="stat-label">Rémunération fixe mensuelle</div>
+            <div class="stat-value text-primary">{{ m.montant(remu ? (remu.salaireTotal + total_avantages) : null, devise) }}</div>
+            <div class="small text-body-secondary">Ancienneté : {{ m.anciennete(affectation) }}</div>
+        </div></div></div>
+    </div>
+{% endif %}
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#dossier" type="button" role="tab"><i class="bi bi-person-vcard me-1"></i>Dossier</button></li>
+    {% if voir_salaires %}
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#remuneration" type="button" role="tab"><i class="bi bi-graph-up me-1"></i>Rémunération <span class="badge text-bg-secondary rounded-pill">{{ affectation.remunerations|length }}</span></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#avantages" type="button" role="tab"><i class="bi bi-gift me-1"></i>Avantages <span class="badge text-bg-secondary rounded-pill">{{ affectation.avantages|length }}</span></button></li>
+    {% endif %}
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#parcours" type="button" role="tab"><i class="bi bi-signpost-split me-1"></i>Parcours <span class="badge text-bg-secondary rounded-pill">{{ salarie.affectations|length }}</span></button></li>
+</ul>
+
+<div class="tab-content">
+    {# ---------- Dossier ---------- #}
+    <div class="tab-pane fade show active" id="dossier" role="tabpanel">
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h2 class="card-title">Identité</h2></div>
+                    <div class="card-body">
+                        <dl class="info-list">
+                            <dt>Nom complet</dt><dd>{{ salarie.nomComplet }}</dd>
+                            <dt>Sexe</dt><dd>{{ salarie.sexe ? salarie.sexe.libelle : '—' }}</dd>
+                            <dt>Naissance</dt><dd>{% if salarie.dateNaissance %}{{ salarie.dateNaissance|date('d/m/Y') }} ({{ salarie.age }} ans){% if salarie.lieuNaissance %} à {{ salarie.lieuNaissance }}{% endif %}{% else %}—{% endif %}</dd>
+                            <dt>Nationalité</dt><dd>{{ salarie.nationaliteNom ?: '—' }}</dd>
+                            <dt>Situation familiale</dt><dd>{{ salarie.situationFamiliale ? salarie.situationFamiliale.libelle : '—' }}</dd>
+                            <dt>Enfants à charge</dt><dd>{{ salarie.nombreEnfants }}</dd>
+                            <dt>Pièce d'identité</dt><dd>{{ salarie.numeroPiece ?: '—' }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h2 class="card-title">Poste & contrat</h2></div>
+                    <div class="card-body">
+                        <dl class="info-list">
+                            <dt>Matricule</dt><dd class="font-monospace">{{ affectation.matricule }}</dd>
+                            <dt>Fonction</dt><dd>{{ affectation.poste ?: '—' }}</dd>
+                            <dt>Emploi / métier</dt><dd>{{ affectation.metier ?: '—' }}</dd>
+                            <dt>Service</dt><dd>{{ affectation.service ?: '—' }}</dd>
+                            <dt>Catégorie / échelon</dt><dd>{{ affectation.categorie ?: '—' }}{% if affectation.echelon %} / {{ affectation.echelon }}{% endif %}</dd>
+                            <dt>Ville / lieu de travail</dt><dd>{{ affectation.site ?: '—' }}</dd>
+                            <dt>Contrat</dt><dd>{{ affectation.typeContrat.libelle }}{% if affectation.dateFinContrat %} — jusqu'au {{ affectation.dateFinContrat|date('d/m/Y') }}{% endif %}</dd>
+                            <dt>Entrée</dt><dd>{{ affectation.dateEntree|date('d/m/Y') }} <span class="text-body-secondary small">({{ m.anciennete(affectation) }})</span></dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Historique des postes</h2>
+                        {% if modifiable and voir_salaires and is_granted('salarie.modifier') %}<a href="{{ path('app_salarie_changer_poste', {id: affectation.id}) }}" class="btn btn-sm btn-light-subtle"><i class="bi bi-briefcase me-1"></i>Changer de poste</a>{% endif %}
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead><tr><th>Depuis le</th><th>Fonction</th><th>Emploi / métier</th><th>Service</th><th>Catégorie / échelon</th><th>Motif</th></tr></thead>
+                            <tbody>
+                            {% for h in affectation.historiquePostes %}
+                                <tr class="{{ loop.first ? 'table-primary' }}">
+                                    <td class="text-nowrap">{{ h.dateEffet|date('d/m/Y') }}{% if loop.first %} <span class="badge text-bg-primary badge-soft">Actuel</span>{% endif %}</td>
+                                    <td class="fw-medium">{{ h.poste ?: '—' }}</td>
+                                    <td>{{ h.metier ?: '—' }}</td>
+                                    <td>{{ h.service ?: '—' }}</td>
+                                    <td>{{ h.categorie ?: '—' }}{% if h.echelon %} / {{ h.echelon }}{% endif %}</td>
+                                    <td class="small text-body-secondary">{{ h.commentaire }}{% if h.creePar %}<div>par {{ h.creePar.nomComplet }}</div>{% endif %}</td>
+                                </tr>
+                            {% else %}
+                                <tr><td colspan="6" class="small text-body-secondary">Aucun historique (salarié enregistré avant le suivi des postes).</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h2 class="card-title">Coordonnées</h2></div>
+                    <div class="card-body">
+                        <dl class="info-list">
+                            <dt>Téléphone</dt><dd>{{ salarie.telephone ?: '—' }}</dd>
+                            <dt>E-mail</dt><dd>{{ salarie.email ?: '—' }}</dd>
+                            <dt>Adresse</dt><dd>{{ salarie.adresse ?: '—' }}</dd>
+                            {% if salarie.zoneTransport %}<dt>Résidence (transport)</dt><dd>{{ salarie.zoneTransport.libelle }} · {{ salarie.zoneTransport.montant|format_currency(societe.deviseEffective, {}, 'fr') }} / mois</dd>{% endif %}
+                        </dl>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header"><h2 class="card-title">Organismes & paiement</h2></div>
+                    <div class="card-body">
+                        <dl class="info-list">
+                            <dt>N° sécurité sociale{% if societe.pays.organismeSocial %} ({{ societe.pays.organismeSocial }}){% endif %}</dt><dd>{{ salarie.numeroSecuriteSociale ?: '—' }}</dd>
+                            <dt>N° assurance maladie</dt><dd>{{ salarie.numeroAssuranceMaladie ?: '—' }}</dd>
+                            <dt>Mode de paiement</dt><dd>{{ salarie.modePaiement.libelle }}</dd>
+                            <dt>Banque / opérateur</dt><dd>{{ salarie.banque ?: '—' }}</dd>
+                            <dt>N° de compte</dt><dd class="font-monospace">{{ salarie.numeroCompte ?: '—' }}</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if voir_salaires %}
+    {# ---------- Rémunération ---------- #}
+    <div class="tab-pane fade" id="remuneration" role="tabpanel">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Historique des salaires</h2>
+                {% if modifiable %}<a href="{{ path('app_salarie_revaloriser', {id: affectation.id}) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Revaloriser</a>{% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Date d'effet</th><th>Motif</th><th class="text-end">Salaire de base</th><th class="text-end">Sursalaire</th><th class="text-end">Total</th><th class="text-end">Évolution</th><th>Saisie</th><th></th></tr></thead>
+                    <tbody>
+                    {% for r in affectation.historiqueRemunerations %}
+                        {% set variation = r.variation %}
+                        <tr class="{{ remu and r.id == remu.id ? 'table-primary' }}">
+                            <td class="text-nowrap">
+                                {{ r.dateEffet|date('d/m/Y') }}
+                                {% if remu and r.id == remu.id %}<span class="badge text-bg-primary badge-soft ms-1">En vigueur</span>
+                                {% elseif r.dateEffet > aujourdhui %}<span class="badge text-bg-warning badge-soft ms-1">À venir</span>{% endif %}
+                            </td>
+                            <td>{{ r.motif.libelle }}{% if r.commentaire %}<div class="small text-body-secondary">{{ r.commentaire }}</div>{% endif %}</td>
+                            <td class="text-end">{{ m.montant(r.salaireBase, devise) }}</td>
+                            <td class="text-end">{{ m.montant(r.sursalaire, devise) }}</td>
+                            <td class="text-end fw-semibold">{{ m.montant(r.salaireTotal, devise) }}</td>
+                            <td class="text-end">
+                                {% if variation is not null %}
+                                    <span class="{{ variation > 0 ? 'text-success' : (variation < 0 ? 'text-danger' : 'text-body-secondary') }}">
+                                        <i class="bi bi-arrow-{{ variation > 0 ? 'up' : (variation < 0 ? 'down' : 'right') }}-short"></i>{{ variation > 0 ? '+' }}{{ variation|number_format(1, ',', ' ') }} %
+                                    </span>
+                                {% else %}<span class="text-body-secondary">—</span>{% endif %}
+                            </td>
+                            <td class="small text-body-secondary">
+                                {{ r.createdAt|date('d/m/Y') }}{% if r.creePar %} · {{ r.creePar.nomComplet }}{% endif %}
+                                {% if r.corrigeLe %}<div class="text-warning-emphasis"><i class="bi bi-pencil-square"></i> Corrigé le {{ r.corrigeLe|date('d/m/Y') }}{% if r.corrigePar %} par {{ r.corrigePar.nomComplet }}{% endif %}</div>{% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if modifiable and loop.first %}
+                                    <a href="{{ path('app_salarie_remuneration_corriger', {id: affectation.id, remuneration: r.id}) }}" class="btn btn-sm btn-light-subtle" title="Corriger une erreur de saisie"><i class="bi bi-pencil"></i></a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# ---------- Avantages ---------- #}
+    <div class="tab-pane fade" id="avantages" role="tabpanel">
+        {% set en_vigueur = affectation.avantages|filter(a => a.actif)|sort((x, y) => x.dateDebut <=> y.dateDebut) %}
+        {% set termines = affectation.avantages|filter(a => not a.actif)|sort((x, y) => y.dateFin <=> x.dateFin) %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <h2 class="card-title">Éléments de salaire fixes en cours</h2>
+                {% if modifiable %}
+                    <div class="d-flex gap-2">
+                        {% if is_granted('salarie.modifier') %}<a href="{{ path('app_salarie_changer_poste', {id: affectation.id}) }}" class="btn btn-sm btn-light-subtle"><i class="bi bi-briefcase me-1"></i>Changer de poste</a>{% endif %}
+                        <a href="{{ path('app_salarie_avantage_ajouter', {id: affectation.id}) }}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Ajouter un avantage</a>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead><tr><th>Rubrique</th><th>Avantage</th><th class="text-end">Montant mensuel</th><th>Période</th><th>Traitement</th><th></th></tr></thead>
+                    <tbody>
+                    {% for a in en_vigueur %}
+                        <tr>
+                            <td class="font-monospace small">{{ a.rubrique ? a.rubrique.code : '—' }}</td>
+                            <td class="fw-medium">
+                                {{ a.libelle }}
+                                {% if a.rubrique and a.libelle != a.rubrique.libelle %}<div class="small text-body-secondary fw-normal">{{ a.rubrique.libelle }}</div>{% endif %}
+                                {% if a.commentaire %}<div class="small text-body-secondary fw-normal">{{ a.commentaire }}</div>{% endif %}
+                            </td>
+                            <td class="text-end fw-semibold">{{ m.montant(a.montant, devise) }}</td>
+                            <td class="small text-nowrap">
+                                depuis le {{ a.dateDebut|date('d/m/Y') }}
+                                {% if a.dateDebut > aujourdhui %}<span class="badge text-bg-warning badge-soft">À venir</span>{% endif %}
+                                {% if a.dateFin %}<div class="text-body-secondary">jusqu'au {{ a.dateFin|date('d/m/Y') }}</div>{% endif %}
+                            </td>
+                            <td class="small">
+                                {% if a.rubrique %}
+                                    <div>Social : {{ a.rubrique.traitementSocial.libelle }}</div>
+                                    <div>Fiscal : {{ a.rubrique.traitementFiscalDetaille }}</div>
+                                {% else %}<span class="text-warning-emphasis">Rubrique à définir</span>{% endif %}
+                                {% if a.enNature %}<span class="badge text-bg-info badge-soft">En nature</span>{% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                                {% if modifiable %}
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light-subtle btn-icon" data-bs-toggle="dropdown" aria-label="Actions"><i class="bi bi-three-dots"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow">
+                                            {% if a.rubrique %}<li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#revision-{{ a.id }}"><i class="bi bi-arrow-down-up me-2"></i>Modifier le montant</button></li>{% endif %}
+                                            <li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#arret-{{ a.id }}"><i class="bi bi-stop-circle me-2"></i>Arrêter</button></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li>
+                                                <form method="post" action="{{ path('app_salarie_avantage_supprimer', {id: affectation.id, avantage: a.id}) }}" data-confirm="Supprimer définitivement « {{ a.libelle }} » ? À réserver aux erreurs de saisie : pour mettre fin à un avantage, utilisez « Arrêter ».">
+                                                    <input type="hidden" name="_token" value="{{ csrf_token('avantage-' ~ a.id) }}">
+                                                    <button class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Supprimer (erreur de saisie)</button>
+                                                </form>
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <div class="modal fade" id="revision-{{ a.id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-dialog-centered"><div class="modal-content text-start">
+                                            <form method="post" action="{{ path('app_salarie_avantage_reviser', {id: affectation.id, avantage: a.id}) }}">
+                                                <div class="modal-header"><h5 class="modal-title">Modifier « {{ a.libelle }} »</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                                <div class="modal-body">
+                                                    <p class="small text-body-secondary">Montant actuel : <strong>{{ m.montant(a.montant, devise) }}</strong>. Le montant actuel reste dans l'historique jusqu'à la veille de la date d'effet.</p>
+                                                    <div class="row g-3">
+                                                        <div class="col-6">
+                                                            <label class="form-label" for="montant-{{ a.id }}">Nouveau montant</label>
+                                                            <div class="input-group">
+                                                                <input type="number" step="0.01" min="0.01" class="form-control text-end" id="montant-{{ a.id }}" name="montant" value="{{ a.montant }}" required>
+                                                                <span class="input-group-text font-monospace small">{{ devise }}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div class="col-6">
+                                                            <label class="form-label" for="effet-{{ a.id }}">À compter du</label>
+                                                            <input type="date" class="form-control" id="effet-{{ a.id }}" name="dateEffet" value="{{ 'first day of next month'|date('Y-m-d') }}" min="{{ a.dateDebut|date_modify('+1 day')|date('Y-m-d') }}" required>
+                                                        </div>
+                                                    </div>
+                                                    <input type="hidden" name="_token" value="{{ csrf_token('avantage-' ~ a.id) }}">
+                                                </div>
+                                                <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary">Enregistrer</button></div>
+                                            </form>
+                                        </div></div>
+                                    </div>
+
+                                    <div class="modal fade" id="arret-{{ a.id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-dialog-centered"><div class="modal-content text-start">
+                                            <form method="post" action="{{ path('app_salarie_avantage_arreter', {id: affectation.id, avantage: a.id}) }}">
+                                                <div class="modal-header"><h5 class="modal-title">Arrêter « {{ a.libelle }} »</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                                                <div class="modal-body">
+                                                    <label class="form-label" for="fin-{{ a.id }}">Dernier jour de versement</label>
+                                                    <input type="date" class="form-control" id="fin-{{ a.id }}" name="dateFin" value="{{ 'last day of this month'|date('Y-m-d') }}" min="{{ a.dateDebut|date('Y-m-d') }}" required>
+                                                    <div class="form-text">L'avantage reste visible dans l'historique.</div>
+                                                    <input type="hidden" name="_token" value="{{ csrf_token('avantage-' ~ a.id) }}">
+                                                </div>
+                                                <div class="modal-footer"><button type="button" class="btn btn-light-subtle" data-bs-dismiss="modal">Annuler</button><button class="btn btn-primary">Arrêter l'avantage</button></div>
+                                            </form>
+                                        </div></div>
+                                    </div>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6"><div class="empty-state py-4"><i class="bi bi-gift"></i>Aucun avantage en cours.</div></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {% if termines|length %}
+            <div class="card">
+                <div class="card-header"><h2 class="card-title">Historique des avantages</h2></div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead><tr><th>Rubrique</th><th>Avantage</th><th class="text-end">Montant mensuel</th><th>Période</th></tr></thead>
+                        <tbody>
+                        {% for a in termines %}
+                            <tr class="text-body-secondary">
+                                <td class="font-monospace small">{{ a.rubrique ? a.rubrique.code : '—' }}</td>
+                                <td>{{ a.libelle }}</td>
+                                <td class="text-end">{{ m.montant(a.montant, devise) }}</td>
+                                <td class="small">du {{ a.dateDebut|date('d/m/Y') }} au {{ a.dateFin|date('d/m/Y') }}</td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {# ---------- Parcours ---------- #}
+    <div class="tab-pane fade" id="parcours" role="tabpanel">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Parcours dans le groupe</h2></div>
+            <div class="card-body">
+                <ul class="parcours">
+                    {% for p in salarie.parcours %}
+                        {% set debut = p.premiereRemuneration %}
+                        {% set fin = p.enCours ? p.remunerationA : p.remunerationA(p.dateSortie) %}
+                        {% set ici = p.id == affectation.id %}
+                        <li class="parcours-etape{{ p.enCours ? ' en-cours' }}{{ ici ? ' ici' }}">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-semibold">
+                                        {{ p.societe.pays.drapeau }} {{ p.societe.raisonSociale }}
+                                        {% if ici %}<span class="badge text-bg-primary badge-soft">Fiche affichée</span>
+                                        {% elseif p.societe.id == societe.id %}<a href="{{ path('app_salarie_voir', {id: p.id}) }}" class="small ms-1">Voir</a>{% endif %}
+                                    </div>
+                                    <div class="small text-body-secondary">
+                                        <span class="font-monospace">{{ p.matricule }}</span> · {{ p.poste ?: 'Poste non renseigné' }} · {{ p.typeContrat.value }}
+                                    </div>
+                                </div>
+                                <div class="text-end small">
+                                    <div>{{ p.dateEntree|date('d/m/Y') }} → {{ p.dateSortie ? p.dateSortie|date('d/m/Y') : 'aujourd\'hui' }}</div>
+                                    <div class="text-body-secondary">{{ m.anciennete(p) }}</div>
+                                </div>
+                            </div>
+                            {% if voir_salaires and debut and fin %}
+                                <div class="small mt-1">
+                                    <i class="bi bi-cash me-1 text-body-secondary"></i>
+                                    {{ m.montant(debut.salaireTotal, p.societe.deviseEffective) }}
+                                    {% if fin.id != debut.id %} → {{ m.montant(fin.salaireTotal, p.societe.deviseEffective) }}{% endif %}
+                                    <span class="text-body-secondary">({{ p.remunerations|length }} ligne{{ p.remunerations|length > 1 ? 's' }} d'historique)</span>
+                                </div>
+                            {% endif %}
+                            {% if not p.enCours %}
+                                <div class="small mt-1 {{ p.motifSortie.value == 'TRANSFERT' ? 'text-info-emphasis' : 'text-body-secondary' }}">
+                                    <i class="bi bi-box-arrow-right me-1"></i>{{ p.motifSortie.libelle }}{% if p.commentaireSortie %} — {{ p.commentaireSortie }}{% endif %}
+                                </div>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

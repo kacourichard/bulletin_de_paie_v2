@@ -1,0 +1,128 @@
+{% extends 'layout/app.html.twig' %}
+
+{% set libelle_mois = mois|format_date(pattern: 'MMMM y', locale: 'fr')|capitalize %}
+{% set code_mois = mois|date('Y-m') %}
+
+{% block title %}Heures supplémentaires — {{ libelle_mois }}{% endblock %}
+{% block page_title %}Heures supplémentaires{% endblock %}
+{% block page_subtitle %}{{ societe.raisonSociale }} · calcul à partir du relevé de pointage (régimes 40 h / 42 h, dimanches, nuits, jours fériés), puis report dans la paie du mois.{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item active">Heures supplémentaires</li>{% endblock %}
+
+{% block page_actions %}
+    <div class="btn-group">
+        <a href="{{ path('app_heures_sup', {mois: precedent|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois précédent"><i class="bi bi-chevron-left"></i></a>
+        <span class="btn btn-light-subtle fw-semibold" style="min-width: 160px; pointer-events: none;">{{ libelle_mois }}</span>
+        <a href="{{ path('app_heures_sup', {mois: suivant|date('Y-m')}) }}" class="btn btn-light-subtle" title="Mois suivant"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    <a href="{{ path('app_heures_sup_feries', {annee: mois|date('Y')}) }}" class="btn btn-light-subtle"><i class="bi bi-calendar-event me-1"></i>Jours fériés</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-xl-8">
+        <div class="card">
+            <div class="card-header"><h2 class="card-title">Relevés de pointage — {{ libelle_mois }}</h2></div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead><tr><th>Fichier</th><th>Période pointée</th><th class="text-end">Salariés</th><th>Importé</th><th>Report en paie</th><th></th></tr></thead>
+                    <tbody>
+                    {% for i in imports %}
+                        <tr>
+                            <td class="fw-medium"><i class="bi bi-file-earmark-spreadsheet text-success me-1"></i>{{ i.nomFichier }}<div class="small text-body-secondary">{{ i.nombreLignes }} ligne(s) · défaut {{ i.regimeParDefaut.libelle }}</div></td>
+                            <td class="small">du {{ i.du|date('d/m/Y') }} au {{ i.au|date('d/m/Y') }}</td>
+                            <td class="text-end">{{ i.donnees|length }}</td>
+                            <td class="small">{{ i.importeLe|date('d/m/Y H:i') }}{% if i.importePar %}<div class="text-body-secondary">{{ i.importePar.nomComplet }}</div>{% endif %}</td>
+                            <td class="small">{% if i.reporteLe %}<span class="text-success"><i class="bi bi-check2-circle me-1"></i>{{ i.reporteLe|date('d/m/Y H:i') }}</span>{% else %}<span class="text-body-secondary">Non reporté</span>{% endif %}</td>
+                            <td class="text-end"><a href="{{ path('app_heures_sup_voir', {id: i.id}) }}" class="btn btn-sm btn-primary">Ouvrir</a></td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6"><div class="empty-state"><i class="bi bi-stopwatch"></i>Aucun relevé de pointage importé pour {{ libelle_mois|lower }}.</div></td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card mt-3 border-success-subtle">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-file-earmark-spreadsheet me-2 text-success"></i>Fichier à importer : exemples</h2></div>
+            <div class="card-body small">
+                <p class="mb-2">Deux formats sont acceptés. Téléchargez un exemple (déjà rempli avec des salariés de la société), remplacez les lignes par votre pointage, puis importez-le.</p>
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a href="{{ path('app_heures_sup_modele') }}" class="btn btn-success btn-sm"><i class="bi bi-download me-1"></i><strong>Modèle simple</strong> · saisie manuelle ou autre logiciel</a>
+                    <a href="{{ path('app_heures_sup_modele', {format: 'logiciel'}) }}" class="btn btn-light-subtle btn-sm"><i class="bi bi-download me-1"></i><strong>Export du logiciel de pointage</strong> · format lu par heures-sup</a>
+                </div>
+                <div class="fw-semibold mb-1">Modèle simple : une ligne par salarié et par jour</div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-0 hs-apercu">
+                        <thead><tr><th>Matricule</th><th>Nom</th><th>Date</th><th>Heures</th><th>Entrée</th><th>Sortie</th><th>Horaire</th></tr></thead>
+                        <tbody>
+                            <tr><td>M0001</td><td>KOUAME</td><td>05/10/2026</td><td>9</td><td>08:00</td><td>18:00</td><td>40h</td></tr>
+                            <tr><td>M0005</td><td>KONE</td><td>05/10/2026</td><td>12</td><td>19:00</td><td>07:00</td><td>42h</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <ul class="text-body-secondary ps-3 mb-0 mt-2">
+                    <li><strong>Obligatoires</strong> : Matricule (ou identifiant de pointage), Date, Heures (pause déduite, ex. 8,5). Entrée / Sortie repèrent le travail de nuit ; Horaire : 40h ou 42h (sinon le régime par défaut).</li>
+                    <li>Export du logiciel : en-têtes en <strong>ligne 14</strong>, colonnes A à U (B identifiant, C date, I horaire, J-K entrée / sortie, M heures du jour).</li>
+                    <li><strong>Refusés</strong> : autre format ou autre type de fichier, date ou heures invalides, plus de 24 h dans une journée, pointage sans aucun jour dans le mois de paie choisi.
+                        Un salarié inconnu est signalé, à rattacher avant le report.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header"><h2 class="card-title">Règles de calcul</h2></div>
+            <div class="card-body small">
+                <ul class="mb-0">
+                    <li><strong>Quota mensuel</strong> : 173 h en régime 40 h, 182 h en régime 42 h (régime lu dans l'horaire du pointage, sinon celui choisi à l'import). Les heures au-delà sont des heures supplémentaires.</li>
+                    <li><strong>15 %</strong> pour les 6 premières heures au-delà du quota, puis <strong>50 %</strong> ; <strong>75 %</strong> le dimanche et les jours fériés non chômés. En 42 h, la nuit : 75 % (100 % le dimanche et les fériés).</li>
+                    <li><strong>Jour férié chômé et payé</strong> : hors quota ; heures au-delà de 8 h (8 h 30 en 42 h) à 75 % (100 % la nuit en 42 h). La veille et le lendemain peuvent suivre la même règle (ex. Fête nationale).</li>
+                    <li><strong>Prime de panier</strong> : chaque jour d'au moins 11 h de travail.</li>
+                    <li><strong>Nuit</strong> (42 h) : entrée à 18 h ou après, sortie à 6 h ou avant, ou passage de minuit.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        {% if is_granted('paie.preparer') %}
+            <form class="card" method="post" action="{{ path('app_heures_sup_importer') }}" enctype="multipart/form-data">
+                <div class="card-header"><h2 class="card-title"><i class="bi bi-upload me-2"></i>Importer un relevé</h2></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="hs-fichier">Fichier de pointage</label>
+                        <input type="file" id="hs-fichier" name="fichier" class="form-control" accept=".xlsx,.xls,.csv" required>
+                        <div class="form-text">Au format d'un des fichiers d'exemple de cette page : tout autre fichier est refusé.</div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label" for="hs-mois">Paie du mois</label>
+                            <input type="month" id="hs-mois" name="mois" class="form-control" value="{{ code_mois }}" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" for="hs-regime">Régime par défaut</label>
+                            <select id="hs-regime" name="regime" class="form-select">{% for r in regimes %}<option value="{{ r.value }}">{{ r.libelle }}</option>{% endfor %}</select>
+                        </div>
+                    </div>
+                    <input type="hidden" name="_token" value="{{ csrf_token('heures-sup') }}">
+                </div>
+                <div class="card-footer"><button class="btn btn-primary w-100"><i class="bi bi-calculator me-1"></i>Importer et calculer</button></div>
+            </form>
+        {% endif %}
+
+        <div class="card mt-3">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-calendar-event me-2"></i>Jours fériés du mois</h2></div>
+            <ul class="list-group list-group-flush small">
+                {% for j in feriesDuMois %}
+                    <li class="list-group-item d-flex justify-content-between gap-2">
+                        <span><strong>{{ j.date|format_date(pattern: 'EEE d', locale: 'fr') }}</strong> — {{ j.libelle }}{% if j.aConfirmer %} <span class="badge text-bg-warning badge-soft">date à confirmer</span>{% endif %}</span>
+                        <span class="text-body-secondary text-nowrap">{{ j.chomePaye ? 'chômé payé' : 'non chômé' }}{{ j.veille ? ' · veille' }}{{ j.lendemain ? ' · lendemain' }}</span>
+                    </li>
+                {% else %}
+                    <li class="list-group-item text-body-secondary">Aucun jour férié ce mois-ci.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

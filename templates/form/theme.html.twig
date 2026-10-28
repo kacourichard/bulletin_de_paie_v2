@@ -1,0 +1,12 @@
+{# Compléments au thème Bootstrap 5 de Symfony. #}
+
+{% block montant_widget %}
+    {% if devise %}
+        <div class="input-group{{ not valid ? ' has-validation' }}">
+            {{ block('number_widget') }}
+            <span class="input-group-text font-monospace small">{{ devise }}</span>
+        </div>
+    {% else %}
+        {{ block('number_widget') }}
+    {% endif %}
+{% endblock %}

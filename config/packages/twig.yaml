@@ -1,0 +1,10 @@
+twig:
+    file_name_pattern: '*.twig'
+    form_themes: ['bootstrap_5_layout.html.twig', 'form/theme.html.twig']
+    globals:
+        app_nom: 'Bulletin de paie'
+        app_version: 'v2'
+
+when@test:
+    twig:
+        strict_variables: true

@@ -1,0 +1,221 @@
+{% extends 'layout/app.html.twig' %}
+
+{% set devise = pays.devise %}
+{% macro montant(v, devise) %}{{ v|format_currency(devise, {}, 'fr') }}{% endmacro %}
+{% import _self as f %}
+
+{% block title %}Paramètres de paie — {{ pays.nom }}{% endblock %}
+{% block page_title %}{{ pays.drapeau }} Paramètres de paie — {{ pays.nom }}{% endblock %}
+{% block page_subtitle %}
+    Règles de calcul appliquées aux bulletins de toutes les sociétés de ce pays.
+    {% if parametre.id %}Dernière modification le {{ parametre.updatedAt|date('d/m/Y à H:i') }}{% if parametre.updatedBy %} par {{ parametre.updatedBy.nomComplet }}{% endif %}.
+    {% else %}<span class="badge text-bg-warning badge-soft">Pays non encore paramétré</span>{% endif %}
+{% endblock %}
+{% block breadcrumb %}<li class="breadcrumb-item">Plateforme</li><li class="breadcrumb-item"><a href="{{ path('app_plateforme_pays') }}">Pays</a></li><li class="breadcrumb-item active">Paramètres de paie {{ pays.nom }}</li>{% endblock %}
+{% block page_actions %}
+    <a href="{{ path('app_plateforme_rubriques', {pays: pays.id}) }}" class="btn btn-light-subtle"><i class="bi bi-list-columns me-1"></i>Rubriques du pays</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+    <div class="col-xl-7">
+        {{ form_start(form) }}
+        {{ form_errors(form) }}
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-secondary me-2"><i class="bi bi-clock"></i></span>Temps de travail</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">{{ form_row(form.joursMois) }}</div>
+                    <div class="col-md-4">{{ form_row(form.heuresMois) }}</div>
+                    <div class="col-md-4">{{ form_row(form.joursCongeParMois) }}</div>
+                </div>
+                <div class="form-check form-switch">{{ form_widget(form.proratiserFixes) }}{{ form_label(form.proratiserFixes) }}</div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-primary me-2">1</span>Prime d'ancienneté</h2></div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">{{ form_widget(form.ancienneteActive) }}{{ form_label(form.ancienneteActive) }}</div>
+                <div class="row">
+                    <div class="col-md-4">{{ form_row(form.ancienneteAnneesMin) }}</div>
+                    <div class="col-md-4">{{ form_row(form.ancienneteTauxInitial) }}</div>
+                    <div class="col-md-4">{{ form_row(form.ancienneteTauxParAn) }}</div>
+                    <div class="col-md-4">{{ form_row(form.ancienneteTauxMax) }}</div>
+                    <div class="col-md-5">{{ form_row(form.ancienneteBase) }}</div>
+                    <div class="col-md-3">{{ form_row(form.ancienneteCode) }}</div>
+                </div>
+                <div class="form-check form-switch">{{ form_widget(form.ancienneteDepuisGroupe) }}{{ form_label(form.ancienneteDepuisGroupe) }}</div>
+                <div class="small text-body-secondary mt-2">
+                    Taux = taux initial + (années − années minimum) × taux par année, dans la limite du maximum.
+                    Exemple actuel :
+                    {% for an in [parametre.ancienneteAnneesMin - 1, parametre.ancienneteAnneesMin, parametre.ancienneteAnneesMin + 3, 30] %}
+                        {% if an >= 0 %}{{ an }} an{{ an > 1 ? 's' }} → <strong>{{ parametre.tauxAnciennete(an) + 0 }} %</strong>{{ not loop.last ? ' · ' }}{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-primary me-2">2</span>Nombre de parts</h2></div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">{{ form_widget(form.partsActives) }}{{ form_label(form.partsActives) }}</div>
+                <p class="small text-body-secondary">Nombre de parts selon la situation et le nombre d'enfants à charge. Au-delà de la dernière colonne renseignée, la dernière valeur s'applique. Une case vide n'est pas utilisée.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead><tr><th>Situation \ enfants</th>{% for n in 0..enfantsMax %}<th class="text-center">{{ n }}{{ loop.last ? '+' }}</th>{% endfor %}</tr></thead>
+                        <tbody>
+                        {% for s in situations %}
+                            <tr>
+                                <td class="small fw-medium text-nowrap">{{ s.libelle }}</td>
+                                {% for n in 0..enfantsMax %}
+                                    <td><input type="text" inputmode="decimal" class="form-control form-control-sm text-center px-1" style="min-width: 52px;" name="parts[{{ s.value }}][{{ n }}]" value="{{ (grille[s.value][n] ?? null) is not null ? grille[s.value][n] + 0 : '' }}" aria-label="{{ s.libelle }}, {{ n }} enfant(s)"></td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-primary me-2">3</span>Salaire brut</h2></div>
+            <div class="card-body">
+                <p class="small text-body-secondary mb-2">Salaire brut = salaire catégoriel + les éléments cochés :</p>
+                <div class="row">
+                    <div class="col-md-6"><div class="form-check">{{ form_widget(form.brutInclutSursalaire) }}{{ form_label(form.brutInclutSursalaire) }}</div></div>
+                    <div class="col-md-6"><div class="form-check">{{ form_widget(form.brutInclutAnciennete) }}{{ form_label(form.brutInclutAnciennete) }}</div></div>
+                    <div class="col-md-6"><div class="form-check">{{ form_widget(form.brutInclutGainsSoumis) }}{{ form_label(form.brutInclutGainsSoumis) }}</div></div>
+                    <div class="col-md-6"><div class="form-check">{{ form_widget(form.brutInclutGainsNonSoumis) }}{{ form_label(form.brutInclutGainsNonSoumis) }}</div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-primary me-2">4</span>Brut imposable</h2></div>
+            <div class="card-body">
+                <p class="small text-body-secondary">Brut imposable = brut − gains non imposables − exonération des indemnités « exonérées dans la limite de X % du brut » (le X est défini sur chaque rubrique).</p>
+                {{ form_row(form.modeExoneration) }}
+                <div class="row">
+                    <div class="col-md-5">{{ form_row(form.decimales) }}</div>
+                    <div class="col-md-7">{{ form_row(form.arrondiNet) }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-primary me-2">5</span>Impôt sur le salaire</h2></div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">{{ form_widget(form.impotActif) }}{{ form_label(form.impotActif) }}</div>
+                <div class="row">
+                    <div class="col-md-5">{{ form_row(form.impotLibelle) }}</div>
+                    <div class="col-md-2">{{ form_row(form.impotCode) }}</div>
+                    <div class="col-md-5">{{ form_row(form.impotAssiette) }}</div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-lg-7">
+                        <div class="fw-semibold small mb-1">Barème mensuel progressif</div>
+                        <table class="table table-sm align-middle mb-1">
+                            <thead><tr><th>Au-delà de</th><th>Jusqu'à (vide = sans limite)</th><th style="width: 90px;">Taux %</th></tr></thead>
+                            <tbody>
+                            {% for i in 0..7 %}
+                                {% set t = tranches[i] ?? null %}
+                                <tr>
+                                    <td><input class="form-control form-control-sm text-end" name="tranches[{{ i }}][de]" value="{{ t ? t.de + 0 : '' }}" inputmode="decimal"></td>
+                                    <td><input class="form-control form-control-sm text-end" name="tranches[{{ i }}][a]" value="{{ t and t.a is not null ? t.a + 0 : '' }}" inputmode="decimal"></td>
+                                    <td><input class="form-control form-control-sm text-end" name="tranches[{{ i }}][taux]" value="{{ t ? t.taux + 0 : '' }}" inputmode="decimal"></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="form-text">Chaque taux s'applique à la part du revenu comprise dans sa tranche.</div>
+                    </div>
+                    <div class="col-lg-5">
+                        <div class="fw-semibold small mb-1">Réduction selon le nombre de parts</div>
+                        <table class="table table-sm align-middle mb-1">
+                            <thead><tr><th>Parts</th><th>Réduction mensuelle</th></tr></thead>
+                            <tbody>
+                            {% for i in 0..9 %}
+                                {% set r = reductions[i] ?? null %}
+                                <tr>
+                                    <td><input class="form-control form-control-sm text-end" name="reductions[{{ i }}][parts]" value="{{ r ? r.parts + 0 : '' }}" inputmode="decimal"></td>
+                                    <td><input class="form-control form-control-sm text-end" name="reductions[{{ i }}][montant]" value="{{ r ? r.montant + 0 : '' }}" inputmode="decimal"></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                        <div class="form-text">Impôt = barème − réduction (jamais négatif).</div>
+                    </div>
+                </div>
+                <hr>
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="small">Cotisations salariales et patronales (CNPS, CMU, FDFP…)</span>
+                    <a href="{{ path('app_plateforme_cotisations', {pays: pays.id}) }}" class="btn btn-sm btn-light-subtle"><i class="bi bi-percent me-1"></i>Gérer les cotisations</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3">
+            <div class="card-header"><h2 class="card-title"><span class="badge text-bg-secondary me-2"><i class="bi bi-hash"></i></span>Codes des lignes du bulletin</h2></div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">{{ form_row(form.codeSalaireBase) }}</div>
+                    <div class="col-md-3">{{ form_row(form.codeBrut) }}</div>
+                    <div class="col-md-3">{{ form_row(form.codeBrutImposable) }}</div>
+                    <div class="col-md-3">{{ form_row(form.codeSalaireNet) }}</div>
+                    <div class="col-md-3">{{ form_row(form.codeArrondi) }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-4">
+            <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Enregistrer les paramètres</button>
+            <a href="{{ path('app_plateforme_pays') }}" class="btn btn-light-subtle">Retour aux pays</a>
+        </div>
+        {{ form_end(form) }}
+    </div>
+
+    <div class="col-xl-5">
+        {% set e = simulation.entree %}
+        {% set r = simulation.resultat %}
+        <div class="card position-sticky" style="top: calc(var(--bp-topbar-height) + 1rem);">
+            <div class="card-header"><h2 class="card-title"><i class="bi bi-calculator me-1 text-primary"></i>Simulateur</h2><span class="small text-body-secondary">paramètres enregistrés</span></div>
+            <div class="card-body">
+                <form method="get" class="row g-2 small mb-3">
+                    <div class="col-6"><label class="form-label small">Salaire catégoriel</label><input name="categoriel" class="form-control form-control-sm" value="{{ e.salaireCategoriel + 0 }}"></div>
+                    <div class="col-6"><label class="form-label small">Sursalaire</label><input name="sursalaire" class="form-control form-control-sm" value="{{ e.sursalaire + 0 }}"></div>
+                    <div class="col-6"><label class="form-label small">Date d'embauche</label><input type="date" name="embauche" class="form-control form-control-sm" value="{{ e.dateEmbauche|date('Y-m-d') }}"></div>
+                    <div class="col-6"><label class="form-label small">Date de paie</label><input type="date" name="reference" class="form-control form-control-sm" value="{{ e.dateReference|date('Y-m-d') }}"></div>
+                    <div class="col-7"><label class="form-label small">Situation</label>
+                        <select name="situation" class="form-select form-select-sm">{% for s in situations %}<option value="{{ s.value }}"{{ e.situation == s ? ' selected' }}>{{ s.libelle }}</option>{% endfor %}</select></div>
+                    <div class="col-5"><label class="form-label small">Enfants</label><input type="number" min="0" name="enfants" class="form-control form-control-sm" value="{{ e.enfants }}"></div>
+                    <div class="col-8"><label class="form-label small">Indemnités exonérables</label><input name="exonerable" class="form-control form-control-sm" value="{{ e.exonerable + 0 }}"></div>
+                    <div class="col-4"><label class="form-label small">Limite %</label><input name="plafond" class="form-control form-control-sm" value="{{ e.plafond + 0 }}"></div>
+                    <div class="col-6"><label class="form-label small">Autres gains soumis</label><input name="soumis" class="form-control form-control-sm" value="{{ e.soumis + 0 }}"></div>
+                    <div class="col-6"><label class="form-label small">Gains non soumis</label><input name="nonsoumis" class="form-control form-control-sm" value="{{ e.nonSoumis + 0 }}"></div>
+                    <div class="col-12"><button class="btn btn-sm btn-light-subtle w-100"><i class="bi bi-arrow-repeat me-1"></i>Recalculer</button></div>
+                </form>
+
+                <table class="table table-sm small mb-0">
+                    <tbody>
+                        <tr><td colspan="2" class="fw-semibold text-uppercase text-body-secondary" style="font-size: .68rem;">1. Prime d'ancienneté</td></tr>
+                        <tr><td>{{ r.anciennete.annees }} an(s) révolu(s) → taux</td><td class="text-end">{{ r.anciennete.taux + 0 }} %</td></tr>
+                        <tr><td>Montant ({{ r.anciennete.taux + 0 }} % × {{ f.montant(r.anciennete.base, devise) }})</td><td class="text-end fw-semibold">{{ f.montant(r.anciennete.montant, devise) }}</td></tr>
+                        <tr><td colspan="2" class="fw-semibold text-uppercase text-body-secondary pt-3" style="font-size: .68rem;">2. Nombre de parts</td></tr>
+                        <tr><td>{{ e.situation.libelle }}, {{ e.enfants }} enfant(s)</td><td class="text-end fw-semibold">{{ r.parts is not null ? r.parts + 0 : (parametre.partsActives ? 'non défini dans la grille' : 'non utilisé') }}</td></tr>
+                        <tr><td colspan="2" class="fw-semibold text-uppercase text-body-secondary pt-3" style="font-size: .68rem;">3. Salaire brut</td></tr>
+                        {% for c in r.compositionBrut %}<tr><td class="ps-3">{{ c.libelle }}</td><td class="text-end">{{ f.montant(c.montant, devise) }}</td></tr>{% endfor %}
+                        <tr class="table-primary"><td class="fw-semibold">Salaire brut</td><td class="text-end fw-bold">{{ f.montant(r.brut, devise) }}</td></tr>
+                        <tr><td colspan="2" class="fw-semibold text-uppercase text-body-secondary pt-3" style="font-size: .68rem;">4. Brut imposable</td></tr>
+                        {% if r.nonImposable > 0 %}<tr><td class="ps-3">− Gains non imposables</td><td class="text-end">{{ f.montant(r.nonImposable, devise) }}</td></tr>{% endif %}
+                        {% if r.exoneration > 0 %}<tr><td class="ps-3">− Exonération <span class="text-body-secondary">({{ r.detailExoneration }})</span></td><td class="text-end">{{ f.montant(r.exoneration, devise) }}</td></tr>{% endif %}
+                        <tr class="table-primary"><td class="fw-semibold">Brut imposable</td><td class="text-end fw-bold">{{ f.montant(r.brutImposable, devise) }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
